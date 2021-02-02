@@ -4,7 +4,7 @@ from typing import List
 from shared.domain.dependencies import dependency_dispatcher
 from trading.domain.entities import Cryptocurrency, Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
-
+from trading.domain.tools import profit_difference_percentage
 
 COMMON_CURRENCY = 'EUR'
 
@@ -27,6 +27,9 @@ def _discriminate_by_sell_and_purchase():
     for_sell = []
     for_purchase = []
 
+    # TODO Lo que decide si comprar o vender debería poder cambiarse
+    #  pensar en esto
+
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     for currency in trading_cryptocurrencies:
         # TODO analyze tendencies
@@ -35,7 +38,13 @@ def _discriminate_by_sell_and_purchase():
         +                       +                       Si no tienes nada, comprar.
         +                       -                       Mirar si vender
         -                       +                       Mirar si comprar
-        -                       -                       Si no tienes nada, comprar.
+        -                       -                       nada.
+        """
+
+        """
+        si mean(to_profit(last_week)) > 0 y mean(to_profit(last_6_hours)) < 0, candidata a vender!
+        si mean(to_profit(last_week)) < 0 y mean(to_profit(last_6_hours)) > 0, candidata a comprar!
+        si mean(to_profit(last_week)) > 0 y mean(to_profit(last_6_hours)) > 0, y no tienes nada, candidata a comprar!
         """
         data = trading_source.get_last_month_prices(currency, COMMON_CURRENCY)
 
@@ -53,10 +62,12 @@ def _check_sell(candidate_currency: Cryptocurrency):
     amount = 0.0
 
     for package in packages:
-        if package.sell_profit_percentage(candidate_currency.sell_price) > 20.0:
-            amount += package.amount
+        profit_difference = profit_difference_percentage(package.bought_at_price, candidate_currency.sell_price)
+        if profit_difference > 10.0:
+            amount += package.currency_amount
 
     if amount > 0.0:
+        amount = math.floor(amount * 100.0) / 100.0
         target = trading_source.get_stable_cryptocurrency()
         trading_source.convert(candidate_currency, amount, target)
 
@@ -69,7 +80,7 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
     source_amount = trading_source.get_amount_owned(source_cryptocurrency)
     parts = len(candidate_currencies)
     for target_currency in candidate_currencies:
-        source_fragment_amount = math.floor(source_amount / parts)
+        source_fragment_amount = math.floor((source_amount / parts) * 100.0) / 100.0
         trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
         storage.save_package(Package())
         # TODO crear el package

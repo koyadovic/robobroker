@@ -1,4 +1,4 @@
-from shared.domain.tools.properties import property_cached
+from datetime import datetime
 
 
 class Cryptocurrency:
@@ -6,21 +6,23 @@ class Cryptocurrency:
     sell_price: float = None
     symbol: str = None
 
-    # TODO constructors
-
-    @property_cached
-    def total_amount(self):
-        # (the sum of all packages) cached_property
-        return 0.0
+    def __init__(self, buy_price=None, sell_price=None, symbol=None):
+        self.buy_price = buy_price
+        self.sell_price = sell_price
+        self.symbol = symbol
 
 
 class Package:
     id: int = None
-    cryptocurrency_symbol: str = None
-    amount: float = None
+    currency_symbol: str = None
+    currency_amount: float = None
     bought_at_price: float = None
+    operation_datetime: datetime = None
 
-    # TODO constructors
-
-    def sell_profit_percentage(self, sell_price):
-        return ((sell_price - self.bought_at_price) / self.bought_at_price) * 100
+    def __init__(self, id=None, currency_symbol=None, currency_amount=None, bought_at_price=None,
+                 operation_datetime=None):
+        self.id = id
+        self.currency_symbol = currency_symbol
+        self.currency_amount = currency_amount
+        self.bought_at_price = bought_at_price
+        self.operation_datetime = operation_datetime
