@@ -16,12 +16,11 @@ class Cryptocurrency:
 
 class Package:
     id: int = None
-    cryptocurrency: Cryptocurrency = None
+    cryptocurrency_symbol: str = None
     amount: float = None
     bought_at_price: float = None
 
     # TODO constructors
 
-    @property
-    def sell_profit_percentage(self):
-        return ((self.cryptocurrency.sell_price - self.bought_at_price) / self.bought_at_price) * 100
+    def sell_profit_percentage(self, sell_price):
+        return ((sell_price - self.bought_at_price) / self.bought_at_price) * 100

@@ -29,7 +29,18 @@ def _discriminate_by_sell_and_purchase():
 
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     for currency in trading_cryptocurrencies:
+        # TODO analyze tendencies
+        """
+        Crecimiento 7 días      Crecimiento 1 día       qué hacer
+        +                       +                       Si no tienes nada, comprar.
+        +                       -                       Mirar si vender
+        -                       +                       Mirar si comprar
+        -                       -                       Si no tienes nada, comprar.
+        """
         data = trading_source.get_last_month_prices(currency, COMMON_CURRENCY)
+
+    # TODO si tenemos currencies por un determinado tiempo que no vendemos y que no sacamos rentabilidad
+    #  tocaría vender sí o sí.
 
     return for_sell, for_purchase
 
@@ -42,7 +53,7 @@ def _check_sell(candidate_currency: Cryptocurrency):
     amount = 0.0
 
     for package in packages:
-        if package.sell_profit_percentage > 5.0:
+        if package.sell_profit_percentage(candidate_currency.sell_price) > 20.0:
             amount += package.amount
 
     if amount > 0.0:
