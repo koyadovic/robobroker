@@ -21,8 +21,16 @@ def trade():
 
 
 def _discriminate_by_sell_and_purchase():
+    # get_trading_cryptocurrencies
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+
     for_sell = []
     for_purchase = []
+
+    trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
+    for currency in trading_cryptocurrencies:
+        data = trading_source.get_last_month_prices(currency, COMMON_CURRENCY)
+
     return for_sell, for_purchase
 
 
