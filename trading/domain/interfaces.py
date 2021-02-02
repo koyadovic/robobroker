@@ -1,6 +1,6 @@
 from typing import List
 
-from trading.domain.entities import Cryptocurrency
+from trading.domain.entities import Cryptocurrency, Package
 
 
 class ICryptoCurrencySource:
@@ -23,4 +23,12 @@ class ICryptoCurrencySource:
         raise NotImplementedError
 
     def convert(self, source_cryptocurrency, source_amount, target_cryptocurrency):  # si todo OK, crear paquete
+        raise NotImplementedError
+
+
+class ILocalStorage:
+    def save_package(self, package: Package):
+        raise NotImplementedError
+
+    def get_cryptocurrency_packages(self, cryptocurrency: Cryptocurrency) -> List[Package]:
         raise NotImplementedError

@@ -6,6 +6,8 @@ class Cryptocurrency:
     sell_price: float = None
     symbol: str = None
 
+    # TODO constructors
+
     @property_cached
     def total_amount(self):
         # (the sum of all packages) cached_property
@@ -13,9 +15,12 @@ class Cryptocurrency:
 
 
 class Package:
+    id: int = None
     cryptocurrency: Cryptocurrency = None
     amount: float = None
     bought_at_price: float = None
+
+    # TODO constructors
 
     @property
     def sell_profit_percentage(self):
