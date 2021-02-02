@@ -7,6 +7,3 @@ class AbstractEnvironment:
 
     def is_in_test(self):
         raise NotImplementedError
-
-    def get_default_absolute_logo_path(self):
-        raise NotImplementedError

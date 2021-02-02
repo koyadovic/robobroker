@@ -1,5 +1,4 @@
 from django.conf import settings
-from ad_signum.settings.base import BASE_DIR
 from shared.domain.interfaces.environment import AbstractEnvironment
 
 
@@ -13,6 +12,3 @@ class DjangoEnvironment(AbstractEnvironment):
 
     def is_in_test(self):
         return settings.TESTING
-
-    def get_default_absolute_logo_path(self):
-        return str(BASE_DIR) + '/../shared/application/web/static/shared/img/full_logo.png'
