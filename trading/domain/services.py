@@ -45,6 +45,8 @@ def _discriminate_by_sell_and_purchase():
         si mean(to_profit(last_week)) > 0 y mean(to_profit(last_6_hours)) < 0, candidata a vender!
         si mean(to_profit(last_week)) < 0 y mean(to_profit(last_6_hours)) > 0, candidata a comprar!
         si mean(to_profit(last_week)) > 0 y mean(to_profit(last_6_hours)) > 0, y no tienes nada, candidata a comprar!
+        
+        Cuidado!! quizá tendría que ser mean(to_profit(last_week)) + standard deviation!
         """
         data = trading_source.get_last_month_prices(currency, COMMON_CURRENCY)
 
