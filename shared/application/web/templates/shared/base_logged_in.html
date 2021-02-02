@@ -1,0 +1,48 @@
+{% extends 'shared/base.html' %}
+{% load static %}
+
+{% block body %}
+<div class="wrapper">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="shadow-sm">
+        <div class="sidebar-header">
+            <div class="logo-wrapper text-center">
+                <img class="logo" src="{% static 'shared/img/full_logo.png' %}">
+            </div>
+        </div>
+
+        <ul class="list-unstyled components">
+            <p>Menu</p>
+
+            {% include 'signing_process/menu_items.html' %}
+
+            {% include 'accounts/menu_items.html' %}
+        </ul>
+    </nav>
+
+    <!-- Page Content -->
+    <div id="content">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container-fluid">
+
+                <button type="button" id="sidebarCollapse" class="btn">
+                    <i class="fas fa-align-left"></i>
+                    <span>Toggle Menu</span>
+                </button>
+
+            </div>
+        </nav>
+
+        {% block content %}
+        {% endblock %}
+    </div>
+
+</div>
+{% endblock %}
+
+
+{% block additional_js %}
+    {{ block.super }}
+    <script src="{% static 'shared/js/global.js' %}"></script>
+{% endblock %}

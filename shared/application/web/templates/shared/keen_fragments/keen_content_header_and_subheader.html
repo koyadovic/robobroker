@@ -1,0 +1,103 @@
+{% load static %}
+					<!-- begin:: Header -->
+					<div id="kt_header" class="kt-header kt-grid__item kt-grid kt-grid--ver  kt-header--fixed ">
+
+						<!-- begin:: Brand -->
+						<div class="kt-header__brand   kt-grid__item" id="kt_header_brand">
+							<a href="/">
+								<img alt="AD Signum logo" style="height:100px; " src="{% static 'shared/keen/assets/media/logos/ad_signum.svg' %}" />
+							</a>
+						</div>
+
+						<!-- end:: Brand -->
+						<!-- begin:: Header Topbar -->
+						<div class="kt-header__topbar kt-grid__item kt-grid__item--fluid">
+
+							<!--begin: Search -->
+							<div class="kt-header__topbar-item kt-header__topbar-item--search dropdown">
+								<div class="kt-header__topbar-wrapper" >
+									<span class="kt-header__topbar-icon"><i class="flaticon2-search"></i></span>
+								</div>
+							</div>
+
+							<!--end: Search -->
+
+							<!--begin: Notifications -->
+							<div class="kt-header__topbar-item">
+								<div class="kt-header__topbar-wrapper" id="kt_offcanvas_toolbar_notifications_toggler_btn">
+									<span class="kt-header__topbar-icon"><i class="flaticon2-notification"></i></span>
+									<span class="kt-badge kt-badge--brand"></span>
+								</div>
+							</div>
+
+							<!--end: Notifications -->
+
+							<!--begin: Quick actions -->
+							<div class="kt-header__topbar-item">
+								<div class="kt-header__topbar-wrapper" id="kt_offcanvas_toolbar_quick_actions_toggler_btn">
+									<span class="kt-header__topbar-icon"><i class="flaticon2-settings"></i></span>
+								</div>
+							</div>
+
+							<!--end: Quick actions -->
+
+
+							<!--begin: Language bar -->
+							<div class="kt-header__topbar-item kt-header__topbar-item--langs">
+								<div class="kt-header__topbar-wrapper" data-toggle="dropdown" data-offset="10px,0px">
+									<span class="kt-header__topbar-icon">
+										<img class="" src="{% static 'shared/keen/assets/media/flags/128-spain.svg' %}" alt="" />
+									</span>
+								</div>
+								<div class="dropdown-menu dropdown-menu-fit dropdown-menu-right dropdown-menu-anim dropdown-menu-top-unround">
+									<ul class="kt-nav kt-margin-t-10 kt-margin-b-10">
+										<li class="kt-nav__item kt-nav__item--active">
+											<a href="#" class="kt-nav__link">
+												<span class="kt-nav__link-icon"><img src="{% static 'shared/keen/assets/media/flags/128-spain.svg' %}" alt="" /></span>
+												<span class="kt-nav__link-text">Spanish</span>
+											</a>
+										</li>
+										<li class="kt-nav__item ">
+											<a href="#" class="kt-nav__link">
+												<span class="kt-nav__link-icon"><img src="{% static 'shared/keen/assets/media/flags/226-united-states.svg' %}" alt="" /></span>
+												<span class="kt-nav__link-text">English</span>
+											</a>
+										</li>
+									</ul>
+								</div>
+							</div>
+							<!--end: Language bar -->
+
+							<!--begin: User bar -->
+							<div class="kt-header__topbar-item kt-header__topbar-item--user" id="kt_offcanvas_toolbar_profile_toggler_btn">
+								<div class="kt-header__topbar-welcome">
+									Hola,
+								</div>
+								<div class="kt-header__topbar-username">
+									{{ request.user.first_name }}
+								</div>
+								<div class="kt-header__topbar-wrapper">
+									<img alt="Pic" src="{% static 'shared/keen/assets/media/users/default.jpg' %}" />
+								</div>
+							</div>
+
+							<!--end: User bar -->
+						</div>
+
+						<!-- end:: Header Topbar -->
+					</div>
+
+					<!-- end:: Header -->
+
+					<!-- begin:: Subheader -->
+					<div id="kt_subheader" class="kt-subheader kt-grid__item ">
+						<div class="kt-container  kt-container--fluid ">
+
+							<!-- begin:: Subheader Title -->
+							<div class="kt-subheader__title">
+								<button class="kt-subheader__toggler kt-subheader__toggler--left" id="kt_aside_toggler"><span></span></button>
+							</div>
+							<!-- end:: Subheader Title -->
+						</div>
+					</div>
+					<!-- end:: Subheader -->
