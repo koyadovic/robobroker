@@ -9,6 +9,12 @@ class Cryptocurrency:
         self.symbol = symbol
         self.metadata = metadata
 
+    def __str__(self):
+        return self.symbol
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class CryptocurrencyPrice:
     symbol: str = None
@@ -21,6 +27,12 @@ class CryptocurrencyPrice:
         self.instant = instant
         self.sell_price = sell_price
         self.buy_price = buy_price
+
+    def __str__(self):
+        return f'{self.symbol} buy: {self.buy_price} sell: {self.sell_price}'
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Package:
@@ -37,3 +49,9 @@ class Package:
         self.currency_amount = currency_amount
         self.bought_at_price = bought_at_price
         self.operation_datetime = operation_datetime
+
+    def __str__(self):
+        return f'{self.currency_symbol} {self.currency_amount}'
+
+    def __repr__(self):
+        return self.__str__()
