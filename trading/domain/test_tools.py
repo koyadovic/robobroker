@@ -2,8 +2,8 @@ import random
 from datetime import datetime
 
 
-def generate_currency_data(phases):
-    now = datetime.utcnow()
+def generate_currency_data(phases, now=None):
+    now = now or datetime.utcnow()
 
     generated_prices = []
 
@@ -31,6 +31,5 @@ def generate_currency_data(phases):
             final_price = random.randint(rand_a, rand_b) / 100
             generated_prices.append(final_price)
             current_iteration += 1
-        # TODO hay que generar desde start_dt a start_dt + td precios fluctuantes desde start_price a end_price
 
     return generated_prices
