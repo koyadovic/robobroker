@@ -2,14 +2,25 @@ from datetime import datetime
 
 
 class Cryptocurrency:
-    buy_price: float = None
-    sell_price: float = None
     symbol: str = None
+    metadata: dict = {}
 
-    def __init__(self, buy_price=None, sell_price=None, symbol=None):
-        self.buy_price = buy_price
-        self.sell_price = sell_price
+    def __init__(self, symbol=None, metadata=None):
         self.symbol = symbol
+        self.metadata = metadata
+
+
+class CryptocurrencyPrice:
+    symbol: str = None
+    instant: datetime = None
+    sell_price: float = None
+    buy_price: float = None
+
+    def __init__(self, symbol=None, instant=None, sell_price=None, buy_price=None):
+        self.symbol = symbol
+        self.instant = instant
+        self.sell_price = sell_price
+        self.buy_price = buy_price
 
 
 class Package:

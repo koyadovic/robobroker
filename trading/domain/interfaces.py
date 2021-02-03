@@ -1,28 +1,32 @@
 from typing import List
 
-from trading.domain.entities import Cryptocurrency, Package
+from trading.domain.entities import Cryptocurrency, Package, CryptocurrencyPrice
 
 
 class ICryptoCurrencySource:
+    def __init__(self, native_currency='EUR'):
+        self.native_currency = native_currency
+
     def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
         raise NotImplementedError
 
     def get_stable_cryptocurrency(self) -> Cryptocurrency:
         raise NotImplementedError
 
-    def get_amount_owned(self, cryptocurrency) -> float:
+    def get_amount_owned(self, cryptocurrency: Cryptocurrency) -> float:
         raise NotImplementedError
 
-    def get_current_sell_price(self, cryptocurrency, common_currency) -> float:
+    def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> float:
         raise NotImplementedError
 
-    def get_current_buy_price(self, cryptocurrency, common_currency) -> float:
+    def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> float:
         raise NotImplementedError
 
-    def get_last_month_prices(self, cryptocurrency, common_currency) -> List[dict]:  # TODO crear entidad para esto
+    def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
         raise NotImplementedError
 
-    def convert(self, source_cryptocurrency, source_amount, target_cryptocurrency):  # si todo OK, crear paquete
+    def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
+                target_cryptocurrency: Cryptocurrency):
         raise NotImplementedError
 
 

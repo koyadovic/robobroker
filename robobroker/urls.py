@@ -16,6 +16,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from shared.domain.dependencies import dependency_dispatcher
+from trading.domain.interfaces import ICryptoCurrencySource
+from trading.infrastructure.coinbase import CoinbaseCryptoCurrencySource
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
+
+dependency_dispatcher.register_implementation(ICryptoCurrencySource,
+                                              CoinbaseCryptoCurrencySource(native_currency='EUR'))

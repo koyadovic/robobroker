@@ -79,8 +79,13 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
 
     source_cryptocurrency = trading_source.get_stable_cryptocurrency()
+    # source amount is amount of this currency
     source_amount = trading_source.get_amount_owned(source_cryptocurrency)
+
     parts = len(candidate_currencies)
+    # queremos diversificación, no jugárnosla a una única moneda
+    if parts < 3:
+        parts = 3
     for target_currency in candidate_currencies:
         source_fragment_amount = math.floor((source_amount / parts) * 100.0) / 100.0
         trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
