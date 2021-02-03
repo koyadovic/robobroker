@@ -3,7 +3,7 @@ import os
 from celery import Celery
 
 # set the default Django settings module for the 'celery' program.
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'robobroker.settings.base')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'robobroker.settings.prod')
 
 app = Celery('robobroker')
 
