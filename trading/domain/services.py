@@ -33,10 +33,11 @@ def _discriminate_by_sell_and_purchase():
     for_sell = []
     for_purchase = []
 
+    now = datetime.utcnow()
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     for currency in trading_cryptocurrencies:
-        now = datetime.utcnow()
         prices = trading_source.get_last_month_prices(currency)
+        last_week_prices = [price for price in prices if now - timedelta(days=7) <= price.instant]
         last_6h_prices = [price for price in prices if now - timedelta(hours=6) <= price.instant]
 
         # Si el precio actual está por encima del precio mediano + stdev último mes,
@@ -60,6 +61,12 @@ def _discriminate_by_sell_and_purchase():
         if current_buy_price < buy_prices_median - buy_prices_stdev and last_6h_profit > 5:
             for_purchase.append(currency)
             continue
+
+        # TODO pensar en esto
+        # last_week_profit = profit_difference_percentage(last_week_prices[0].buy_price, last_week_prices[-1].buy_price)
+        # if last_week_profit > 5 and last_6h_profit > 5:
+        #     for_purchase.append(currency)
+        #     continue
 
         print(f'{currency} untouched. '
               f'sell_prices_median: {sell_prices_median}, current_sell_price: {current_sell_price}, '
