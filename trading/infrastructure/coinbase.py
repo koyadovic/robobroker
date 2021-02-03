@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import List
 
 from shared.domain.configurations import server_get, server_set
+from shared.domain.periodic_tasks import schedule
 from trading.domain.entities import Cryptocurrency, CryptocurrencyPrice
 from trading.domain.interfaces import ICryptoCurrencySource
 from coinbase.wallet.client import Client
@@ -95,7 +96,6 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                                                amount=formatted_amount, currency=source_cryptocurrency.symbol)
 
 
-# TODO write tests for this
 def _get_current_prices_key(now=None):
     now = now or datetime.utcnow()
     year = now.year
@@ -108,7 +108,6 @@ def _get_current_prices_key(now=None):
     return current_key
 
 
-# TODO write tests for this
 def _get_previous_prices_key(now=None):
     now = now or datetime.utcnow()
     year = now.year
@@ -145,3 +144,63 @@ def fetch_prices():
         server_set(_get_current_prices_key(), {
             'current_prices': current_prices
         })
+
+
+@schedule(minute='0', unique_name='fetch_prices_0')
+def _fetch_0():
+    fetch_prices()
+
+
+@schedule(minute='5', unique_name='fetch_prices_5')
+def _fetch_5():
+    fetch_prices()
+
+
+@schedule(minute='10', unique_name='fetch_prices_10')
+def _fetch_10():
+    fetch_prices()
+
+
+@schedule(minute='15', unique_name='fetch_prices_15')
+def _fetch_15():
+    fetch_prices()
+
+
+@schedule(minute='20', unique_name='fetch_prices_20')
+def _fetch_20():
+    fetch_prices()
+
+
+@schedule(minute='25', unique_name='fetch_prices_25')
+def _fetch_25():
+    fetch_prices()
+
+
+@schedule(minute='30', unique_name='fetch_prices_30')
+def _fetch_30():
+    fetch_prices()
+
+
+@schedule(minute='35', unique_name='fetch_prices_35')
+def _fetch_35():
+    fetch_prices()
+
+
+@schedule(minute='40', unique_name='fetch_prices_40')
+def _fetch_40():
+    fetch_prices()
+
+
+@schedule(minute='45', unique_name='fetch_prices_45')
+def _fetch_45():
+    fetch_prices()
+
+
+@schedule(minute='50', unique_name='fetch_prices_50')
+def _fetch_50():
+    fetch_prices()
+
+
+@schedule(minute='55', unique_name='fetch_prices_55')
+def _fetch_55():
+    fetch_prices()

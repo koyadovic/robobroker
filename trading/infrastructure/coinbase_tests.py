@@ -1,0 +1,58 @@
+import unittest
+from datetime import datetime
+
+from trading.infrastructure.coinbase import _get_current_prices_key, _get_previous_prices_key
+
+
+class CoinbaseTests(unittest.TestCase):
+    def test_get_current_prices_key(self):
+        key = _get_current_prices_key(datetime(2020, 1, 1))
+        self.assertEqual(key, 'prices_2020_0')
+        key = _get_current_prices_key(datetime(2020, 2, 1))
+        self.assertEqual(key, 'prices_2020_0')
+        key = _get_current_prices_key(datetime(2020, 3, 1))
+        self.assertEqual(key, 'prices_2020_1')
+        key = _get_current_prices_key(datetime(2020, 4, 1))
+        self.assertEqual(key, 'prices_2020_1')
+        key = _get_current_prices_key(datetime(2020, 5, 1))
+        self.assertEqual(key, 'prices_2020_2')
+        key = _get_current_prices_key(datetime(2020, 6, 1))
+        self.assertEqual(key, 'prices_2020_2')
+        key = _get_current_prices_key(datetime(2020, 7, 1))
+        self.assertEqual(key, 'prices_2020_3')
+        key = _get_current_prices_key(datetime(2020, 8, 1))
+        self.assertEqual(key, 'prices_2020_3')
+        key = _get_current_prices_key(datetime(2020, 9, 1))
+        self.assertEqual(key, 'prices_2020_4')
+        key = _get_current_prices_key(datetime(2020, 10, 1))
+        self.assertEqual(key, 'prices_2020_4')
+        key = _get_current_prices_key(datetime(2020, 11, 1))
+        self.assertEqual(key, 'prices_2020_5')
+        key = _get_current_prices_key(datetime(2020, 12, 1))
+        self.assertEqual(key, 'prices_2020_5')
+
+    def test_get_previous_prices_key(self):
+        key = _get_previous_prices_key(datetime(2020, 1, 1))
+        self.assertEqual(key, 'prices_2019_5')
+        key = _get_previous_prices_key(datetime(2020, 2, 1))
+        self.assertEqual(key, 'prices_2019_5')
+        key = _get_previous_prices_key(datetime(2020, 3, 1))
+        self.assertEqual(key, 'prices_2020_0')
+        key = _get_previous_prices_key(datetime(2020, 4, 1))
+        self.assertEqual(key, 'prices_2020_0')
+        key = _get_previous_prices_key(datetime(2020, 5, 1))
+        self.assertEqual(key, 'prices_2020_1')
+        key = _get_previous_prices_key(datetime(2020, 6, 1))
+        self.assertEqual(key, 'prices_2020_1')
+        key = _get_previous_prices_key(datetime(2020, 7, 1))
+        self.assertEqual(key, 'prices_2020_2')
+        key = _get_previous_prices_key(datetime(2020, 8, 1))
+        self.assertEqual(key, 'prices_2020_2')
+        key = _get_previous_prices_key(datetime(2020, 9, 1))
+        self.assertEqual(key, 'prices_2020_3')
+        key = _get_previous_prices_key(datetime(2020, 10, 1))
+        self.assertEqual(key, 'prices_2020_3')
+        key = _get_previous_prices_key(datetime(2020, 11, 1))
+        self.assertEqual(key, 'prices_2020_4')
+        key = _get_previous_prices_key(datetime(2020, 12, 1))
+        self.assertEqual(key, 'prices_2020_4')

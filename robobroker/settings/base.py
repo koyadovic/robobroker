@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/3.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
-
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,6 +24,7 @@ SECRET_KEY = '(tfbkbzefw81uf4i6$+-ocqtz+^$(3*hdh&ts5^%y672vgj9)o'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+TESTING = sys.argv[1:2] == ['test']
 
 ALLOWED_HOSTS = []
 
@@ -37,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'shared',
 ]
 
 MIDDLEWARE = [
@@ -79,6 +82,10 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+if TESTING:
+    DATABASES['default']['NAME'] = BASE_DIR / 'test.db.sqlite3'
+
+print('Database', DATABASES)
 
 
 # Password validation

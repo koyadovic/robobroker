@@ -16,7 +16,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from shared.domain.configurations import AbstractConfigurationStorage
 from shared.domain.dependencies import dependency_dispatcher
+from shared.domain.interfaces.environment import AbstractEnvironment
+from shared.infrastructure.django_configurations import DjangoConfigurationStorage
+from shared.infrastructure.django_environment import DjangoEnvironment
 from trading.domain.interfaces import ICryptoCurrencySource
 from trading.infrastructure.coinbase import CoinbaseCryptoCurrencySource
 
@@ -26,3 +30,5 @@ urlpatterns = [
 
 dependency_dispatcher.register_implementation(ICryptoCurrencySource,
                                               CoinbaseCryptoCurrencySource(native_currency='EUR'))
+dependency_dispatcher.register_implementation(AbstractEnvironment, DjangoEnvironment())
+dependency_dispatcher.register_implementation(AbstractConfigurationStorage, DjangoConfigurationStorage())
