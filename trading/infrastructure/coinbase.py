@@ -99,9 +99,17 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
                 target_cryptocurrency: Cryptocurrency):
         formatted_amount = '{:.2f}'.format(source_amount)
-        response = self._client.transfer_money(source_cryptocurrency.metadata.get('id'),
-                                               to=target_cryptocurrency.metadata.get('id'),
+        response = self._client.transfer_money(self._get_account_id(source_cryptocurrency),
+                                               to=self._get_account_id(target_cryptocurrency),
                                                amount=formatted_amount, currency=source_cryptocurrency.symbol)
+
+    def _get_account_id(self, currency: Cryptocurrency):
+        id_ = currency.metadata.get('id')
+        if id_ is not None:
+            return id_
+        account = self._client.get_account(currency.symbol)
+        currency.metadata['id'] = account.id
+        return account.id
 
 
 def _get_current_prices_key(now=None):
