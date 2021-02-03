@@ -34,5 +34,8 @@ class ILocalStorage:
     def save_package(self, package: Package):
         raise NotImplementedError
 
+    def delete_package(self, package: Package):
+        raise NotImplementedError
+
     def get_cryptocurrency_packages(self, cryptocurrency: Cryptocurrency) -> List[Package]:
         raise NotImplementedError
