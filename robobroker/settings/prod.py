@@ -3,6 +3,10 @@ import os
 from .base import *
 
 
+DEBUG = False
+ALLOWED_HOSTS = ['*']
+
+
 MEDIA_ROOT = os.path.join('/var/www/robobroker/media_test/' if TESTING else '/var/www/robobroker/media/')
 STATIC_ROOT = '/var/www/robobroker/static/'
 

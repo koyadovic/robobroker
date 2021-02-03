@@ -86,9 +86,6 @@ DATABASES = {
 if TESTING:
     DATABASES['default']['NAME'] = BASE_DIR / 'test.db.sqlite3'
 
-print('Database', DATABASES)
-
-
 # Password validation
 # https://docs.djangoproject.com/en/3.1/ref/settings/#auth-password-validators
 
