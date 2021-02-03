@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from shared.domain.configurations import server_get
 from shared.domain.dependencies import dependency_dispatcher
 from shared.domain.periodic_tasks import schedule
+from shared.domain.system_logs import add_system_log
 from trading.domain.entities import Cryptocurrency, Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 from trading.domain.tools import profit_difference_percentage
@@ -107,6 +108,7 @@ def _check_sell(candidate_currency: Cryptocurrency):
         trading_source.convert(candidate_currency, amount, target)
         for package in delete_packages:
             storage.delete_package(package)
+        add_system_log(f'SELL', f'SELL {candidate_currency.symbol} {amount}')
 
 
 def _check_buy(candidate_currencies: List[Cryptocurrency]):
@@ -135,6 +137,7 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
             operation_datetime=datetime.utcnow(),
         )
         storage.save_package(package)
+        add_system_log(f'BUY', f'BUY {target_currency.symbol} {source_fragment_amount}')
 
 
 @schedule(hour='0', unique_name='trade_0')

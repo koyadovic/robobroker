@@ -34,3 +34,14 @@ class DUserConfiguration(models.Model):
     @property
     def core_entity(self):
         return UserConfiguration(self.user_pk, self.key, self.data)
+
+
+class DSystemLog(models.Model):
+    instant = models.DateTimeField(auto_now_add=True)
+    log_type = models.CharField(max_length=255, db_index=True)
+    text = models.TextField(blank=False, null=False, default='')
+
+    class Meta:
+        ordering = ('-instant',)
+        verbose_name = 'System Log'
+        verbose_name_plural = 'System Logs'
