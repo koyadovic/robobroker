@@ -141,6 +141,11 @@ def _get_previous_prices_key(now=None):
 
 
 def fetch_prices():
+    enable_fetch_prices_data = server_get('enable_fetch_prices', default_data={'activated': False}).data
+    enable_fetch_prices = enable_fetch_prices_data.get('activated')
+    if not enable_fetch_prices:
+        return
+
     trading_source: ICryptoCurrencySource = CoinbaseCryptoCurrencySource()
     current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
     current_prices = current_prices_data.get('current_prices', [])

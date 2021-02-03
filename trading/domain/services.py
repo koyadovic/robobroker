@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 
+from shared.domain.configurations import server_get
 from shared.domain.dependencies import dependency_dispatcher
+from shared.domain.periodic_tasks import schedule
 from trading.domain.entities import Cryptocurrency, Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 from trading.domain.tools import profit_difference_percentage
@@ -14,6 +16,11 @@ COMMON_CURRENCY = 'EUR'
 
 
 def trade():
+    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
+    enable_trading = enable_trading_data.get('activated')
+    if not enable_trading:
+        return
+
     """
     El proceso es:
     1.- El Discriminator cataloga candidates_for_purchase y candidates_for_sell
@@ -128,3 +135,33 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
             operation_datetime=datetime.utcnow(),
         )
         storage.save_package(package)
+
+
+@schedule(hour='0', unique_name='trade_0')
+def _trade_0():
+    trade()
+
+
+@schedule(hour='2', unique_name='trade_2')
+def _trade_2():
+    trade()
+
+
+@schedule(hour='4', unique_name='trade_4')
+def _trade_4():
+    trade()
+
+
+@schedule(hour='6', unique_name='trade_6')
+def _trade_6():
+    trade()
+
+
+@schedule(hour='8', unique_name='trade_8')
+def _trade_8():
+    trade()
+
+
+@schedule(hour='10', unique_name='trade_10')
+def _trade_10():
+    trade()
