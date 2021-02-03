@@ -1,3 +1,1 @@
-from django.db import models
-
-# Create your models here.
+from trading.application.django_models import *

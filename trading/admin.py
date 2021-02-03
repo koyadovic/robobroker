@@ -1,3 +1,1 @@
-from django.contrib import admin
-
-# Register your models here.
+from trading.application.django_admin import *
