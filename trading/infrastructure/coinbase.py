@@ -2,6 +2,8 @@ import os
 from datetime import datetime, timedelta
 from typing import List
 
+from coinbase.wallet.error import NotFoundError
+
 from shared.domain.configurations import server_get, server_set
 from shared.domain.periodic_tasks import schedule
 from trading.domain.entities import Cryptocurrency, CryptocurrencyPrice
@@ -18,7 +20,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
     def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
         now_ts = datetime.utcnow().timestamp()
-        trading_cryptocurrencies_data = server_get('trading_cryptocurrencies').data
+        trading_cryptocurrencies_data = server_get('trading_cryptocurrencies', default_data={}).data
         last_ts = trading_cryptocurrencies_data.get('ts', None)
         cryptocurrencies = trading_cryptocurrencies_data.get('cryptocurrencies', [])
         if not (last_ts is not None and last_ts + (3600*24) > now_ts):
@@ -38,7 +40,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         return [Cryptocurrency(**c) for c in cryptocurrencies]
 
     def get_stable_cryptocurrency(self) -> Cryptocurrency:
-        stable_cryptocurrency = server_get('stable_cryptocurrency').data
+        stable_cryptocurrency = server_get('stable_cryptocurrency', default_data={}).data
         if len(stable_cryptocurrency.keys()) > 0:
             return Cryptocurrency(**stable_cryptocurrency)
         account = self._client.get_account('DAI')
@@ -56,18 +58,24 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         return float(account.balance.amount)
 
     def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> float:
-        response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
-        return float(response.amount)
+        try:
+            response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
+            return float(response.amount)
+        except NotFoundError:
+            return 0.0
 
     def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> float:
-        response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
-        return float(response.amount)
+        try:
+            response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
+            return float(response.amount)
+        except NotFoundError:
+            return 0.0
 
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
         now = datetime.utcnow()
 
-        current_prices_data = server_get(_get_current_prices_key()).data
-        previous_prices_data = server_get(_get_previous_prices_key()).data
+        current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
+        previous_prices_data = server_get(_get_previous_prices_key(), default_data={}).data
 
         current_prices = current_prices_data.get('current_prices', [])
         current_prices += previous_prices_data.get('current_prices', [])
@@ -126,12 +134,16 @@ def _get_previous_prices_key(now=None):
 
 def fetch_prices():
     trading_source: ICryptoCurrencySource = CoinbaseCryptoCurrencySource()
-    current_prices_data = server_get(_get_current_prices_key()).data
+    current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
     current_prices = current_prices_data.get('current_prices', [])
 
     for cryptocurrency in trading_source.get_trading_cryptocurrencies():
         sell_price = trading_source.get_current_sell_price(cryptocurrency)
+        if sell_price == 0.0:
+            continue
         buy_price = trading_source.get_current_buy_price(cryptocurrency)
+        if buy_price == 0.0:
+            continue
         now = datetime.utcnow()
 
         price = {
