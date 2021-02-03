@@ -168,3 +168,33 @@ def _trade_8():
 @schedule(hour='10', unique_name='trade_10')
 def _trade_10():
     trade()
+
+
+@schedule(hour='12', unique_name='trade_12')
+def _trade_12():
+    trade()
+
+
+@schedule(hour='14', unique_name='trade_14')
+def _trade_14():
+    trade()
+
+
+@schedule(hour='16', unique_name='trade_16')
+def _trade_16():
+    trade()
+
+
+@schedule(hour='18', unique_name='trade_18')
+def _trade_18():
+    trade()
+
+
+@schedule(hour='20', unique_name='trade_20')
+def _trade_20():
+    trade()
+
+
+@schedule(hour='22', unique_name='trade_22')
+def _trade_22():
+    trade()
