@@ -39,6 +39,12 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             })
         return [Cryptocurrency(**c) for c in cryptocurrencies]
 
+    def get_trading_cryptocurrency(self, symbol: str) -> Optional[Cryptocurrency]:
+        for currency in self.get_trading_cryptocurrencies():
+            if currency.symbol == symbol:
+                return currency
+        return None
+
     def get_stable_cryptocurrency(self) -> Cryptocurrency:
         stable_cryptocurrency = server_get('stable_cryptocurrency', default_data={}).data
         if len(stable_cryptocurrency.keys()) > 0:

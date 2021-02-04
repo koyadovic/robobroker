@@ -10,6 +10,9 @@ class ICryptoCurrencySource:
     def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
         raise NotImplementedError
 
+    def get_trading_cryptocurrency(self, symbol: str) -> Optional[Cryptocurrency]:
+        raise NotImplementedError
+
     def get_stable_cryptocurrency(self) -> Cryptocurrency:
         raise NotImplementedError
 
