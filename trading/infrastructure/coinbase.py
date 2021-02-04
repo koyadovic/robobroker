@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 
 from coinbase.wallet.error import NotFoundError
 
@@ -57,19 +57,19 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         account = self._client.get_account(cryptocurrency.symbol)
         return float(account.balance.amount)
 
-    def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> float:
+    def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         try:
             response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
             return float(response.amount)
         except NotFoundError:
-            return 0.0
+            return None
 
-    def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> float:
+    def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         try:
             response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
             return float(response.amount)
         except NotFoundError:
-            return 0.0
+            return None
 
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
         now = datetime.utcnow()
@@ -152,13 +152,10 @@ def fetch_prices():
 
     for cryptocurrency in trading_source.get_trading_cryptocurrencies():
         sell_price = trading_source.get_current_sell_price(cryptocurrency)
-        if sell_price == 0.0:
-            continue
         buy_price = trading_source.get_current_buy_price(cryptocurrency)
-        if buy_price == 0.0:
+        if sell_price is None or buy_price is None:
             continue
         now = datetime.utcnow()
-
         price = {
             'symbol': cryptocurrency.symbol,
             'instant': now.timestamp(),

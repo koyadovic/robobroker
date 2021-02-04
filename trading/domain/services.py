@@ -7,7 +7,7 @@ from shared.domain.system_logs import add_system_log
 from trading.domain.entities import Cryptocurrency, Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 from trading.domain.tools import profit_difference_percentage
-
+import matplotlib.pyplot as plt
 from typing import List
 
 import statistics
@@ -16,6 +16,7 @@ import math
 COMMON_CURRENCY = 'EUR'
 
 
+@schedule(hour='*', unique_name='trade')
 def trade():
     enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
     enable_trading = enable_trading_data.get('activated')
@@ -35,6 +36,8 @@ def trade():
 
 
 def _discriminate_by_sell_and_purchase():
+    # consume un máximo de 89 peticiones al API
+
     # get_trading_cryptocurrencies
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
 
@@ -45,45 +48,84 @@ def _discriminate_by_sell_and_purchase():
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     for currency in trading_cryptocurrencies:
         prices = trading_source.get_last_month_prices(currency)
-        last_week_prices = [price for price in prices if now - timedelta(days=7) <= price.instant]
+        if len(prices) == 0:
+            continue
+
+        last_24h_prices = [price for price in prices if now - timedelta(hours=24) <= price.instant]
         last_6h_prices = [price for price in prices if now - timedelta(hours=6) <= price.instant]
+
+        current_sell_price = prices[-1].sell_price
+        # current_sell_price = trading_source.get_current_sell_price(currency)
+        if current_sell_price is None:
+            continue
 
         # Si el precio actual está por encima del precio mediano + stdev último mes,
         # y la rentabilidad 6h es < 0, vender!
-        current_sell_price = trading_source.get_current_sell_price(currency)
-        sell_prices = [price.sell_price for price in prices]
-        sell_prices_median = statistics.median(sell_prices)
-        sell_prices_stdev = statistics.stdev(sell_prices)
+        last_24h_profit = profit_difference_percentage(last_24h_prices[0].sell_price, last_24h_prices[-1].sell_price)
         last_6h_profit = profit_difference_percentage(last_6h_prices[0].sell_price, last_6h_prices[-1].sell_price)
-        if current_sell_price > sell_prices_median + sell_prices_stdev and last_6h_profit < 5:
+        if last_24h_profit > 5 and last_6h_profit < 0:
             for_sell.append(currency)
             continue
 
         # Si el precio actual está por debajo del precio mediano - stdev último mes,
         # y la rentabilidad 6h es > 0, comprar!
-        current_buy_price = trading_source.get_current_buy_price(currency)
-        buy_prices = [price.buy_price for price in prices]
-        buy_prices_median = statistics.median(buy_prices)
-        buy_prices_stdev = statistics.stdev(buy_prices)
+        current_buy_price = prices[-1].buy_price
+        # current_buy_price = trading_source.get_current_buy_price(currency)
+        if current_buy_price is None:
+            continue
+
+        buy_prices_month = [price.buy_price for price in prices]
+        buy_prices_median = statistics.median(buy_prices_month)
+        buy_prices_stdev = statistics.stdev(buy_prices_month)
         last_6h_profit = profit_difference_percentage(last_6h_prices[0].buy_price, last_6h_prices[-1].buy_price)
-        if current_buy_price < buy_prices_median - buy_prices_stdev and last_6h_profit > 5:
+        if current_buy_price < buy_prices_median - (buy_prices_stdev / 2.0) and last_6h_profit > 5:
             for_purchase.append(currency)
             continue
 
-        # TODO pensar en esto
-        # last_week_profit = profit_difference_percentage(last_week_prices[0].buy_price, last_week_prices[-1].buy_price)
-        # if last_week_profit > 5 and last_6h_profit > 5:
-        #     for_purchase.append(currency)
-        #     continue
-
-        print(f'{currency} untouched. '
-              f'sell_prices_median: {sell_prices_median}, current_sell_price: {current_sell_price}, '
-              f'buy_prices_median: {buy_prices_median}, current_buy_price: {current_buy_price}, ')
-
-    # TODO si tenemos currencies por un determinado tiempo que no vendemos y que no sacamos rentabilidad
-    #  tocaría vender sí o sí.
+    _plot(for_sell, 'For sell')
+    _plot(for_purchase, 'For purchase')
 
     return for_sell, for_purchase
+
+
+def _plot(currencies, title):
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    if len(currencies) > 0:
+        fig, axs = plt.subplots(len(currencies))
+        fig.suptitle(title)
+        for n, currency in enumerate(currencies):
+            prices = trading_source.get_last_month_prices(currency)
+            if len(prices) == 0:
+                continue
+
+            x = [p.instant.timestamp() for p in prices]
+            y = [p.sell_price for p in prices]
+            try:
+                axs[n].plot(x, y)
+                axs[n].set_xlabel(currency.symbol)
+            except TypeError:
+                axs.plot(x, y)
+                axs.set_xlabel(currency.symbol)
+        plt.tight_layout()
+        plt.show()
+
+
+def _get_global_market_profit(time_delta=None):
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    time_delta = time_delta or timedelta(hours=24)
+    now = datetime.utcnow()
+    trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
+    profits = []
+    for currency in trading_cryptocurrencies:
+        prices = trading_source.get_last_month_prices(currency)
+        prices = [price for price in prices if now - time_delta <= price.instant]
+        if len(prices) == 0:
+            continue
+        profit = profit_difference_percentage(prices[0].buy_price, prices[-1].buy_price)
+        profits.append(profit)
+    if len(profits) == 0:
+        return 0.0
+    return statistics.mean(profits)
 
 
 def _check_sell(candidate_currency: Cryptocurrency):
@@ -138,63 +180,3 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
         )
         storage.save_package(package)
         add_system_log(f'BUY', f'BUY {target_currency.symbol} {source_fragment_amount}')
-
-
-@schedule(hour='0', unique_name='trade_0')
-def _trade_0():
-    trade()
-
-
-@schedule(hour='2', unique_name='trade_2')
-def _trade_2():
-    trade()
-
-
-@schedule(hour='4', unique_name='trade_4')
-def _trade_4():
-    trade()
-
-
-@schedule(hour='6', unique_name='trade_6')
-def _trade_6():
-    trade()
-
-
-@schedule(hour='8', unique_name='trade_8')
-def _trade_8():
-    trade()
-
-
-@schedule(hour='10', unique_name='trade_10')
-def _trade_10():
-    trade()
-
-
-@schedule(hour='12', unique_name='trade_12')
-def _trade_12():
-    trade()
-
-
-@schedule(hour='14', unique_name='trade_14')
-def _trade_14():
-    trade()
-
-
-@schedule(hour='16', unique_name='trade_16')
-def _trade_16():
-    trade()
-
-
-@schedule(hour='18', unique_name='trade_18')
-def _trade_18():
-    trade()
-
-
-@schedule(hour='20', unique_name='trade_20')
-def _trade_20():
-    trade()
-
-
-@schedule(hour='22', unique_name='trade_22')
-def _trade_22():
-    trade()

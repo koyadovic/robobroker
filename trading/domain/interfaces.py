@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from trading.domain.entities import Cryptocurrency, Package, CryptocurrencyPrice
 
@@ -16,10 +16,10 @@ class ICryptoCurrencySource:
     def get_amount_owned(self, cryptocurrency: Cryptocurrency) -> float:
         raise NotImplementedError
 
-    def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> float:
+    def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         raise NotImplementedError
 
-    def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> float:
+    def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         raise NotImplementedError
 
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
