@@ -34,7 +34,7 @@ _FILE_LOCK = '/tmp/.dia_periodic_tasks'
 """
 
 
-def schedule(minute='*', hour='*', day='*', month='*', weekday='*', unique_name=None):
+def schedule(minute='*', hour='*', day='*', month='*', weekday='*', unique_name=None, priority=0):
     def decorator(func):
         string_regex = _to_complete_regex(minute, hour, day, month, weekday)
         if string_regex not in _ALL_EXECUTABLES:
@@ -44,10 +44,12 @@ def schedule(minute='*', hour='*', day='*', month='*', weekday='*', unique_name=
 
         func_serialized = serialize_function(func)
         func_serialized = '.'.join(func_serialized.split('.')[-2:])
+        func.priority = priority
 
         if func_serialized not in _ADDED_EXECUTABLES[string_regex]:
             _ALL_EXECUTABLES[string_regex].append(func)
             _ADDED_EXECUTABLES[string_regex].append(func_serialized)
+        _ALL_EXECUTABLES[string_regex].sort(key=lambda f: f.priority, reverse=True)
 
         def wrapper():
             return func()
