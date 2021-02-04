@@ -75,6 +75,8 @@ class CoinbaseTests(unittest.TestCase):
         driver = get_current_browser_driver(headless=False)
         driver.get("https://www.coinbase.com/accounts/b0f3f75f-f229-50db-9266-46b89aa6ee5a")
 
+        time.sleep(5)
+
         # Vista detallada
         for element in driver.find_elements_by_css_selector('div[data-is-active="0"]'):
             if element.text.lower().strip() == 'vista detallada':
@@ -103,8 +105,6 @@ class CoinbaseTests(unittest.TestCase):
         # find the currency
         attr = coinbase_attribute_conv_table['AAVE']
         driver.find_element_by_xpath('//div[@data-element-handle="' + attr + '"]').click()
-
-        time.sleep(2)
 
         # introduces cantidad
         for element in driver.find_elements_by_css_selector('input[minlength="1"]'):
