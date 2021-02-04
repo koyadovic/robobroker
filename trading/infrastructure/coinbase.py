@@ -11,6 +11,50 @@ from trading.domain.interfaces import ICryptoCurrencySource
 from coinbase.wallet.client import Client
 
 
+coinbase_attribute_conv_table = {
+    'BTC': 'convert-to-select-bitcoin',
+    'ETH': 'convert-to-select-ethereum',
+    'LTC': 'convert-to-select-litecoin',
+    'BCH': 'convert-to-select-bitcoin-cash',
+    'EOS': 'convert-to-select-eos',
+    'XLM': 'convert-to-select-stellar',
+    'ETC': 'convert-to-select-ethereum-classic',
+    'ZEC': 'convert-to-select-zcash',
+    'BAT': 'convert-to-select-basic-attention-token',
+    'REP': 'convert-to-select-augur',
+    'ZRX': 'convert-to-select-0x',
+    'DAI': 'convert-to-select-dai',
+    'MANA': 'convert-to-select-decentraland',
+    'DNT': 'convert-to-select-district0x',
+    'CVC': 'convert-to-select-civic',
+    'MKR': 'convert-to-select-maker',
+    'OMG': 'convert-to-select-omg-network',
+    'KNC': 'convert-to-select-kyber-network',
+    'LINK': 'convert-to-select-chainlink',
+    'XTZ': 'convert-to-select-tezos',
+    'DASH': 'convert-to-select-dash',
+    'ATOM': 'convert-to-select-cosmos',
+    'BAND': 'convert-to-select-band-protocol',
+    'NMR': 'convert-to-select-numeraire',
+    'OXT': 'convert-to-select-orchid',
+    'COMP': 'convert-to-select-compound',
+    'CGLD': 'convert-to-select-celo',
+    'YFI': 'convert-to-select-yearn-finance',
+    'UNI': 'convert-to-select-uniswap',
+    'LRC': 'convert-to-select-loopring',
+    'UMA': 'convert-to-select-uma',
+    'BAL': 'convert-to-select-balancer',
+    'REN': 'convert-to-select-ren',
+    'WBTC': 'convert-to-select-wrapped-bitcoin',
+    'NU': 'convert-to-select-nucypher',
+    'FIL': 'convert-to-select-filecoin',
+    'AAVE': 'convert-to-select-aave',
+    'GRT': 'convert-to-select-the-graph',
+    'BNT': 'convert-to-select-bancor-network-token',
+    'SNX': 'convert-to-select-synthetix-network-token',
+}
+
+
 class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
     @property
     def _client(self):
@@ -104,10 +148,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
                 target_cryptocurrency: Cryptocurrency):
-        formatted_amount = '{:.2f}'.format(source_amount)
-        response = self._client.transfer_money(self._get_account_id(source_cryptocurrency),
-                                               to=self._get_account_id(target_cryptocurrency),
-                                               amount=formatted_amount, currency=source_cryptocurrency.symbol)
+        pass
 
     def _get_account_id(self, currency: Cryptocurrency):
         id_ = currency.metadata.get('id')

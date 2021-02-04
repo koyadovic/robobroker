@@ -8,12 +8,13 @@ from shared.domain.periodic_tasks import schedule
 from shared.domain.system_logs import add_system_log
 from trading.domain.entities import Cryptocurrency, Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
-from trading.domain.tools import profit_difference_percentage
 import matplotlib.pyplot as plt
 from typing import List
 
 import statistics
 import math
+
+from trading.domain.tools.stats import profit_difference_percentage
 
 COMMON_CURRENCY = 'EUR'
 
