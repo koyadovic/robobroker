@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -10,6 +11,8 @@ from trading.domain.entities import Cryptocurrency, CryptocurrencyPrice
 from trading.domain.interfaces import ICryptoCurrencySource
 from coinbase.wallet.client import Client
 
+from trading.domain.tools.browser import get_current_browser_driver
+from trading.domain.tools.money import two_decimals_floor
 
 coinbase_attribute_conv_table = {
     'BTC': 'convert-to-select-bitcoin',
@@ -56,6 +59,8 @@ coinbase_attribute_conv_table = {
 
 
 class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
+    driver = None
+
     @property
     def _client(self):
         api_key = os.environ['API_KEY']
@@ -146,9 +151,72 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         native_prices.sort(key=lambda p: p.instant)
         return native_prices
 
+    def start_conversions(self):
+        # TODO test login
+        # TODO get headless from database setting
+        self.driver = get_current_browser_driver(headless=False)
+
+    def finish_conversions(self):
+        self.driver.quit()
+
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
-                target_cryptocurrency: Cryptocurrency):
-        pass
+                target_cryptocurrency: Cryptocurrency, test=False):
+
+        target_cryptocurrency_html_element_attr = coinbase_attribute_conv_table[target_cryptocurrency.symbol]
+
+        source_id = source_cryptocurrency.metadata.get("id", None)
+        if source_id is None:
+            source_id = self._client.get_account(source_cryptocurrency.symbol).id
+
+        self.driver.get(f'https://www.coinbase.com/accounts/{source_id}')
+
+        time.sleep(5)
+
+        # Vista detallada
+        for element in self.driver.find_elements_by_css_selector('div[data-is-active="0"]'):
+            if element.text.lower().strip() == 'vista detallada':
+                element.click()
+                break
+        else:
+            raise Exception()
+
+        # convertir!
+        for element in self.driver.find_elements_by_css_selector('div[data-element-handle="folder-tab-convert"]'):
+            if element.is_displayed():
+                element.click()
+                break
+        else:
+            raise Exception()
+
+        # click en cambiar moneda
+        # convert-to-selector
+        for element in self.driver.find_elements_by_css_selector('div[data-element-handle="convert-to-selector"]'):
+            if element.is_displayed():
+                element.click()
+                break
+        else:
+            raise Exception()
+
+        # find the currency
+        self.driver.find_element_by_xpath(
+            '//div[@data-element-handle="' + target_cryptocurrency_html_element_attr + '"]').click()
+
+        # introduces cantidad
+        for element in self.driver.find_elements_by_css_selector('input[minlength="1"]'):
+            if element.is_displayed():
+                element.click()
+                element.send_keys(two_decimals_floor(source_amount))
+                break
+        else:
+            raise Exception()
+
+        # vista previa de la conversión
+        self.driver.find_element_by_css_selector('button[data-element-handle="convert-preview-button"]').click()
+
+        # convertir ahora
+        convert_button = self.driver.find_elements_by_css_selector('button[data-element-handle="convert-confirm-button"]')
+        if not test:
+            convert_button.click()
 
     def _get_account_id(self, currency: Cryptocurrency):
         id_ = currency.metadata.get('id')

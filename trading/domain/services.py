@@ -33,9 +33,14 @@ def trade():
     3.- Se finaliza llamando check_purchase(candidates_for_purchase)
     """
     for_sell, for_purchase = _discriminate_by_sell_and_purchase()
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    trading_source.start_conversions()
+
     for currency in for_sell:
         _check_sell(currency)
     _check_buy(for_purchase)
+
+    trading_source.finish_conversions()
 
 
 def _sample():

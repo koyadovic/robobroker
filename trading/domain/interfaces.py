@@ -28,6 +28,12 @@ class ICryptoCurrencySource:
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
         raise NotImplementedError
 
+    def start_conversions(self):
+        raise NotImplementedError
+
+    def finish_conversions(self):
+        raise NotImplementedError
+
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
                 target_cryptocurrency: Cryptocurrency):
         raise NotImplementedError
