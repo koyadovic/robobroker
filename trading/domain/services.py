@@ -15,7 +15,7 @@ from typing import List
 import statistics
 import math
 
-from trading.domain.tools.money import two_decimals_floor
+from trading.domain.tools.money import two_decimals_floor, eight_decimals_floor
 from trading.domain.tools.prices import PricesQueryset
 from trading.domain.tools.stats import profit_difference_percentage
 
@@ -141,9 +141,10 @@ def purchase():
     parts = len(for_purchase)
     if parts == 0:
         parts = 1
-    source_fragment_amount = math.floor((source_amount / parts) * 100.0) / 100.0
+    source_fragment_amount = source_amount / parts
     if source_fragment_amount > trading_purchase_settings_data.get('max_amount_per_purchase'):
         source_fragment_amount = trading_purchase_settings_data.get('max_amount_per_purchase')
+    source_fragment_amount = eight_decimals_floor(source_fragment_amount)
 
     trading_source.start_conversions()
 
@@ -190,7 +191,7 @@ def reset_trading():
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
             continue
         packages = storage.get_cryptocurrency_packages(currency)
-        amount = two_decimals_floor(amount)
+        amount = eight_decimals_floor(amount)
         target = trading_source.get_stable_cryptocurrency()
         trading_source.convert(currency, amount, target)
         for package in packages:
@@ -226,7 +227,7 @@ def reset_currency(symbol: str):
     if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
         return
 
-    amount = two_decimals_floor(amount)
+    amount = eight_decimals_floor(amount)
     packages = storage.get_cryptocurrency_packages(source)
     trading_source.start_conversions()
     trading_source.convert(source, amount, target)
