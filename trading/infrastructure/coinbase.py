@@ -168,6 +168,11 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         if source_id is None:
             source_id = self._client.get_account(source_cryptocurrency.symbol).id
 
+        auto_finish = False
+        if self.driver is None:
+            auto_finish = True
+            self.start_conversions()
+
         self.driver.get(f'https://www.coinbase.com/accounts/{source_id}')
 
         time.sleep(5)
@@ -217,6 +222,9 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         convert_button = self.driver.find_elements_by_css_selector('button[data-element-handle="convert-confirm-button"]')
         if not test:
             convert_button.click()
+
+        if auto_finish:
+            self.finish_conversions()
 
     def _get_account_id(self, currency: Cryptocurrency):
         id_ = currency.metadata.get('id')

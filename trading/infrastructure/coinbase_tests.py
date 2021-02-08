@@ -6,7 +6,7 @@ from selenium.common.exceptions import NoSuchElementException
 
 from trading.domain.tools.browser import get_current_browser_driver
 from trading.infrastructure.coinbase import _get_current_prices_key, _get_previous_prices_key, \
-    coinbase_attribute_conv_table
+    coinbase_attribute_conv_table, CoinbaseCryptoCurrencySource
 
 
 class CoinbaseTests(unittest.TestCase):
@@ -71,4 +71,9 @@ class CoinbaseTests(unittest.TestCase):
         driver.quit()
 
     def test_convert_currency(self):
-        # import ipdb;  ipdb.set_trace(context=10)
+        source: CoinbaseCryptoCurrencySource = CoinbaseCryptoCurrencySource(native_currency='EUR')
+        source.start_conversions()
+        stable = source.get_stable_cryptocurrency()
+        target = source.get_trading_cryptocurrency('BTC')
+        source.convert(stable, 10.0, target, test=True)
+        source.finish_conversions()
