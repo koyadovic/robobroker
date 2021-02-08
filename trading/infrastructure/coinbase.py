@@ -164,7 +164,12 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
     
     def _get_last_month_prices_remote(self, cryptocurrency: Cryptocurrency):
         auth = HTTPBasicAuth(os.environ.get('REMOTE_USER'), os.environ.get('REMOTE_PASS'))
-        response = requests.get(f'https://rob.idiet.fit/api/month-prices/{cryptocurrency.symbol}/', auth=auth)
+        try:
+            response = requests.get(f'https://rob.idiet.fit/api/month-prices/{cryptocurrency.symbol}/', auth=auth)
+        except Exception as e:
+            print(e)
+            return []
+
         data = response.json()
         return [CryptocurrencyPrice(
             symbol=p['symbol'],
