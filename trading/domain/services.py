@@ -47,13 +47,13 @@ def sell():
         packages = storage.get_cryptocurrency_packages(currency)
 
         """
-        1.- Para vender, rentabilidad últimas 4h tendría que ser < -5 y tener paquetes que cumplan:
+        1.- Para vender, rentabilidad últimas 3h tendría que ser < -5 y tener paquetes que cumplan:
                 + Que alguno ofrezca una rentabilidad de > 20%
                 + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
                 + Que tengan más de n meses de antiguedad. Que sea configurable.
         """
-        profit_4h = qs.profit_percentage(timedelta(hours=4), now=now)
-        if profit_4h < -5:
+        profit_3h = qs.profit_percentage(timedelta(hours=3), now=now)
+        if profit_3h < -5:
             amount = 0.0
             remove_packages = []
             profits = []
@@ -113,19 +113,20 @@ def purchase():
 
         packages = storage.get_cryptocurrency_packages(currency)
         current_sell_price = prices[-1].sell_price
-
-        native_total = 0
+        price_mean = statistics.mean([p.sell_price for p in prices])
+        price_profit_from_mean = profit_difference_percentage(price_mean, current_sell_price)
+        native_amount_owned = 0
         for package in packages:
-            native_total += package.currency_amount * current_sell_price
-        if native_total == 0:
-            native_total = 1
-        profitability = qs.profit_percentage(timedelta(days=7), now=now)
-        score = profitability / native_total
-        if score < 0:
-            purchase_currency_data.append({
-                'score': score,
-                'currency': currency
-            })
+            native_amount_owned += package.currency_amount * current_sell_price
+        if native_amount_owned < 1:
+            native_amount_owned = 1
+
+        # special score computed with profit from mean and divided by native amount owned
+        score = price_profit_from_mean / native_amount_owned
+        purchase_currency_data.append({
+            'score': score,
+            'currency': currency
+        })
 
     purchase_currency_data.sort(key=lambda item: item['score'])
 
