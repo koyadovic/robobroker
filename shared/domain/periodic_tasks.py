@@ -73,7 +73,7 @@ def execute_minute_tick():
     Call this function if want to manage minute tick call from outside. (Celery or whatever)
     """
     global _LAST_EXECUTION_STRING
-    now = datetime.utcnow().replace(tzinfo=pytz.utc)
+    now = pytz.utc.localize(datetime.utcnow())
     string = _datetime_to_string_for_regex_test(now)
     if _LAST_EXECUTION_STRING != string:
         for string_regex, callbacks in _ALL_EXECUTABLES.items():

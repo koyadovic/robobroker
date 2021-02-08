@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import pytz
 from matplotlib.dates import DateFormatter
 
 from shared.domain.configurations import server_get
@@ -31,7 +32,7 @@ def sell():
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
 
-    now = datetime.utcnow()
+    now = pytz.utc.localize(datetime.utcnow())
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
 
     trading_source.start_conversions()
@@ -100,7 +101,7 @@ def purchase():
     if round(source_amount) <= 1:
         return
 
-    now = datetime.utcnow()
+    now = pytz.utc.localize(datetime.utcnow())
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     purchase_currency_data = []
 
@@ -147,7 +148,7 @@ def purchase():
             currency_symbol=target_currency.symbol,
             currency_amount=source_fragment_amount,
             bought_at_price=current_buy_price,
-            operation_datetime=datetime.utcnow(),
+            operation_datetime=pytz.utc.localize(datetime.utcnow()),
         )
         storage.save_package(package)
         add_system_log(f'BUY', f'BUY {target_currency.symbol} {source_fragment_amount}')
@@ -161,7 +162,7 @@ Obsolete
 
 
 def _sample():
-    now = datetime.utcnow()
+    now = pytz.utc.localize(datetime.utcnow())
     current = now - timedelta(hours=36)
     while current < now:
         _discriminate_by_sell_and_purchase_2(current)
@@ -175,7 +176,7 @@ def _discriminate_by_sell_and_purchase_2(now=None):
     for_sell = []
     purchase_currency_data = []
 
-    now = now or datetime.utcnow()
+    now = now or pytz.utc.localize(datetime.utcnow())
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
 
     for currency in trading_cryptocurrencies:
@@ -244,7 +245,7 @@ def _discriminate_by_sell_and_purchase(now=None):
     for_sell = []
     for_purchase = []
 
-    now = now or datetime.utcnow()
+    now = now or pytz.utc.localize(datetime.utcnow())
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     for currency in trading_cryptocurrencies:
         prices = trading_source.get_last_month_prices(currency)
@@ -317,7 +318,7 @@ def _plot_prices(currencies, title, now):
 def _get_global_market_profit(time_delta=None):
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     time_delta = time_delta or timedelta(hours=24)
-    now = datetime.utcnow()
+    now = pytz.utc.localize(datetime.utcnow())
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     profits = []
     for currency in trading_cryptocurrencies:
@@ -336,7 +337,7 @@ def _check_sell(candidate_currency: Cryptocurrency):
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
 
-    now = datetime.utcnow()
+    now = pytz.utc.localize(datetime.utcnow())
 
     packages = storage.get_cryptocurrency_packages(candidate_currency)
     delete_packages = []
@@ -393,7 +394,7 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
             currency_symbol=target_currency.symbol,
             currency_amount=source_fragment_amount,
             bought_at_price=target_currency_buy_price,
-            operation_datetime=datetime.utcnow(),
+            operation_datetime=pytz.utc.localize(datetime.utcnow()),
         )
         storage.save_package(package)
         add_system_log(f'BUY', f'BUY {target_currency.symbol} {source_fragment_amount}')

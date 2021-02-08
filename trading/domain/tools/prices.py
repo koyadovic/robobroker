@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytz
+
 from trading.domain.tools.stats import profit_difference_percentage
 
 
@@ -8,7 +10,7 @@ class PricesQueryset:
         self.prices = prices
 
     def filter_by_last(self, td, now=None):
-        now = now or datetime.utcnow()
+        now = now or pytz.utc.localize(datetime.utcnow())
         filtered_prices = [price for price in self.prices if now - td <= price.instant <= now]
         return filtered_prices
 

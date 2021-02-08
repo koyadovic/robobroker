@@ -3,6 +3,7 @@ import time
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+import pytz
 from coinbase.wallet.error import NotFoundError
 
 from shared.domain.configurations import server_get, server_set
@@ -68,7 +69,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         return Client(api_key, api_secret, api_version='2016-04-12')
 
     def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
-        now_ts = datetime.utcnow().timestamp()
+        now_ts = pytz.utc.localize(datetime.utcnow()).timestamp()
         trading_cryptocurrencies_data = server_get('trading_cryptocurrencies', default_data={}).data
         last_ts = trading_cryptocurrencies_data.get('ts', None)
         cryptocurrencies = trading_cryptocurrencies_data.get('cryptocurrencies', [])
@@ -127,7 +128,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             return None
 
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
-        now = datetime.utcnow()
+        now = pytz.utc.localize(datetime.utcnow())
 
         current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
         previous_prices_data = server_get(_get_previous_prices_key(), default_data={}).data
@@ -236,7 +237,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
 
 def _get_current_prices_key(now=None):
-    now = now or datetime.utcnow()
+    now = now or pytz.utc.localize(datetime.utcnow())
     year = now.year
     month = now.month - 1
     if month < 0:
@@ -248,7 +249,7 @@ def _get_current_prices_key(now=None):
 
 
 def _get_previous_prices_key(now=None):
-    now = now or datetime.utcnow()
+    now = now or pytz.utc.localize(datetime.utcnow())
     year = now.year
     month = now.month - 1
     if month < 0:
@@ -265,7 +266,7 @@ def _get_previous_prices_key(now=None):
 
 @schedule(minute='*', unique_name='fetch_prices', priority=666)
 def fetch_prices():
-    now = datetime.utcnow()
+    now = pytz.utc.localize(datetime.utcnow())
     if now.minute % 5 != 0:
         return
 
@@ -283,7 +284,7 @@ def fetch_prices():
         buy_price = trading_source.get_current_buy_price(cryptocurrency)
         if sell_price is None or buy_price is None:
             continue
-        now = datetime.utcnow()
+        now = pytz.utc.localize(datetime.utcnow())
         price = {
             'symbol': cryptocurrency.symbol,
             'instant': now.timestamp(),

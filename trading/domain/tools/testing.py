@@ -1,11 +1,13 @@
 import random
 from datetime import datetime, timedelta
 
+import pytz
+
 from trading.domain.entities import CryptocurrencyPrice
 
 
 def generate_currency_prices(phases, symbol=None, now=None):
-    now = now or datetime.utcnow()
+    now = now or pytz.utc.localize(datetime.utcnow())
 
     generated_prices = []
 
