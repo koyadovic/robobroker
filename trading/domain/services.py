@@ -202,6 +202,42 @@ def reset_trading():
     })
 
 
+def reset_currency(symbol: str):
+    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
+    server_set('enable_trading', {
+        'activated': False
+    })
+
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
+    now = pytz.utc.localize(datetime.utcnow())
+
+    source = trading_source.get_trading_cryptocurrency(symbol)
+    target = trading_source.get_stable_cryptocurrency()
+
+    if source.symbol == target.symbol:
+        return
+    amount = trading_source.get_amount_owned(source)
+    if round(amount) == 0.0:
+        return
+    prices = trading_source.get_last_month_prices(source)
+    qs = PricesQueryset(prices)
+    if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+        return
+
+    amount = two_decimals_floor(amount)
+    packages = storage.get_cryptocurrency_packages(source)
+    trading_source.start_conversions()
+    trading_source.convert(source, amount, target)
+    trading_source.finish_conversions()
+    for package in packages:
+        storage.delete_package(package)
+
+    server_set('enable_trading', {
+        'activated': enable_trading_data.get('activated')
+    })
+
+
 """
 Obsolete
 """
