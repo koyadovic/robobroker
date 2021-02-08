@@ -193,6 +193,10 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         target_cryptocurrency_html_element_attr = coinbase_attribute_conv_table[target_cryptocurrency.symbol]
 
+        sell_price = self.get_current_sell_price(source_cryptocurrency)
+        buy_price = self.get_current_buy_price(source_cryptocurrency)
+        current_price = (sell_price + buy_price) / 2.0
+
         source_id = source_cryptocurrency.metadata.get("id", None)
         if source_id is None:
             source_id = self._client.get_account(source_cryptocurrency.symbol).id
@@ -239,7 +243,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         for element in self.driver.find_elements_by_css_selector('input[minlength="1"]'):
             if element.is_displayed():
                 element.click()
-                element.send_keys(two_decimals_floor(source_amount))
+                native_amount = (source_amount * current_price) - 0.01
+                element.send_keys(two_decimals_floor(native_amount))
                 break
         else:
             raise Exception()
