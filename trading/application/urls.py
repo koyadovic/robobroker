@@ -1,0 +1,7 @@
+from django.urls import path
+
+from trading.application import api_views
+
+urlpatterns = [
+    path('api/month-prices/<str:currency>/', api_views.last_month_prices_view),
+]

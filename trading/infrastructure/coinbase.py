@@ -144,7 +144,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         for price in current_prices:
             if price['symbol'] != cryptocurrency.symbol:
                 continue
-            instant = datetime.utcfromtimestamp(price['instant'])
+            instant = pytz.utc.localize(datetime.utcfromtimestamp(price['instant']))
             if instant < now - timedelta(days=30):
                 continue
             native_prices.append(CryptocurrencyPrice(
