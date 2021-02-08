@@ -4,7 +4,9 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import pytz
+import requests
 from coinbase.wallet.error import NotFoundError
+from requests.auth import HTTPBasicAuth
 
 from shared.domain.configurations import server_get, server_set
 from shared.domain.periodic_tasks import schedule
@@ -132,29 +134,41 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             return None
 
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
-        now = pytz.utc.localize(datetime.utcnow())
+        return self._get_last_month_prices_remote(cryptocurrency)
+        # now = pytz.utc.localize(datetime.utcnow())
+        #
+        # current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
+        # previous_prices_data = server_get(_get_previous_prices_key(), default_data={}).data
+        #
+        # current_prices = current_prices_data.get('current_prices', [])
+        # current_prices += previous_prices_data.get('current_prices', [])
+        #
+        # native_prices = []
+        # for price in current_prices:
+        #     if price['symbol'] != cryptocurrency.symbol:
+        #         continue
+        #     instant = pytz.utc.localize(datetime.utcfromtimestamp(price['instant']))
+        #     if instant < now - timedelta(days=30):
+        #         continue
+        #     native_prices.append(CryptocurrencyPrice(
+        #         symbol=price['symbol'],
+        #         instant=instant,
+        #         sell_price=price['sell_price'],
+        #         buy_price=price['buy_price'],
+        #     ))
+        # native_prices.sort(key=lambda p: p.instant)
+        # return native_prices
 
-        current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
-        previous_prices_data = server_get(_get_previous_prices_key(), default_data={}).data
-
-        current_prices = current_prices_data.get('current_prices', [])
-        current_prices += previous_prices_data.get('current_prices', [])
-
-        native_prices = []
-        for price in current_prices:
-            if price['symbol'] != cryptocurrency.symbol:
-                continue
-            instant = pytz.utc.localize(datetime.utcfromtimestamp(price['instant']))
-            if instant < now - timedelta(days=30):
-                continue
-            native_prices.append(CryptocurrencyPrice(
-                symbol=price['symbol'],
-                instant=instant,
-                sell_price=price['sell_price'],
-                buy_price=price['buy_price'],
-            ))
-        native_prices.sort(key=lambda p: p.instant)
-        return native_prices
+    def _get_last_month_prices_remote(self, cryptocurrency: Cryptocurrency):
+        auth = HTTPBasicAuth(os.environ.get('REMOTE_USER'), os.environ.get('REMOTE_PASS'))
+        response = requests.get(f'https://rob.idiet.fit/api/month-prices/{cryptocurrency.symbol}/', auth=auth)
+        data = response.json()
+        return [CryptocurrencyPrice(
+            symbol=p['symbol'],
+            instant=pytz.utc.localize(datetime.utcfromtimestamp(p['instant'])),
+            sell_price=p['sell_price'],
+            buy_price=p['buy_price'],
+        ) for p in data]
 
     def start_conversions(self):
         # TODO test login
