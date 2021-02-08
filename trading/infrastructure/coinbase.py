@@ -136,7 +136,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
         if cryptocurrency is None:
             return []
-        
+
         # return self._get_last_month_prices_remote(cryptocurrency)
         now = pytz.utc.localize(datetime.utcnow())
 
