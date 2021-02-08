@@ -175,12 +175,14 @@ def reset_trading():
     trading_source.start_conversions()
 
     for currency in trading_cryptocurrencies:
+        amount = trading_source.get_amount_owned(currency)
+        if round(amount) == 0.0:
+            continue
         prices = trading_source.get_last_month_prices(currency)
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
             continue
         packages = storage.get_cryptocurrency_packages(currency)
-        amount = trading_source.get_amount_owned(currency)
         amount = two_decimals_floor(amount)
         target = trading_source.get_stable_cryptocurrency()
         trading_source.convert(currency, amount, target)
