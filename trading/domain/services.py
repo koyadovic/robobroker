@@ -52,8 +52,8 @@ def sell():
                 + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
                 + Que tengan más de n meses de antiguedad. Que sea configurable.
         """
-        profit_4d = qs.profit_percentage(timedelta(days=4), now=now)
-        if profit_4d < -5:
+        profit_4h = qs.profit_percentage(timedelta(hours=4), now=now)
+        if profit_4h < -5:
             amount = 0.0
             remove_packages = []
             profits = []
