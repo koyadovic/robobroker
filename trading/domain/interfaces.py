@@ -35,7 +35,8 @@ class ICryptoCurrencySource:
         raise NotImplementedError
 
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
-                target_cryptocurrency: Cryptocurrency):
+                target_cryptocurrency: Cryptocurrency) -> float:
+        # must return the real converted source amount
         raise NotImplementedError
 
 

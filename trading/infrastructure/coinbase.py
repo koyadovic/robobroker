@@ -16,6 +16,7 @@ from trading.domain.interfaces import ICryptoCurrencySource
 from coinbase.wallet.client import Client
 
 from trading.domain.tools.browser import get_current_browser_driver
+from trading.domain.tools.executions import execution_with_attempts
 from trading.domain.tools.money import two_decimals_floor
 
 coinbase_attribute_conv_table = {
@@ -188,8 +189,9 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
     def finish_conversions(self):
         self.driver.quit()
 
+    @execution_with_attempts(attempts=3)
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
-                target_cryptocurrency: Cryptocurrency, test=False):
+                target_cryptocurrency: Cryptocurrency, test=False) -> float:
 
         target_cryptocurrency_html_element_attr = coinbase_attribute_conv_table[target_cryptocurrency.symbol]
 
@@ -240,17 +242,34 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             '//div[@data-element-handle="' + target_cryptocurrency_html_element_attr + '"]').click()
 
         # introduces cantidad
+        real_source_amount = None
         for element in self.driver.find_elements_by_css_selector('input[minlength="1"]'):
             if element.is_displayed():
                 element.click()
-                native_amount = (source_amount * current_price) - 0.01
-                element.send_keys(two_decimals_floor(native_amount))
+                native_amount = (source_amount * current_price) + 0.1
+                while real_source_amount is None or real_source_amount > source_amount:
+                    element.clear()
+                    element.send_keys(two_decimals_floor(native_amount))
+                    time.sleep(2)
+                    convert_from_element = self.driver.find_element_by_css_selector('div[data-element-handle="convert-from-selector"]')
+                    for paragraph_element in convert_from_element.find_elements_by_xpath('.//p'):
+                        if source_cryptocurrency.symbol in paragraph_element.text:
+                            real_value = str(paragraph_element.text.split(source_cryptocurrency.symbol)[0]).strip()
+                            real_value = real_value.replace(',', '.')
+                            real_source_amount = float(real_value)
+                            if real_source_amount > source_amount:
+                                native_amount -= 0.05
+                            break
+                    else:
+                        raise Exception(f'Cannot find paragraph with real source amount')
                 break
         else:
             raise Exception()
 
         # vista previa de la conversión
         self.driver.find_element_by_css_selector('button[data-element-handle="convert-preview-button"]').click()
+
+        time.sleep(15)
 
         # convertir ahora
         convert_button = self.driver.find_elements_by_css_selector('button[data-element-handle="convert-confirm-button"]')
@@ -259,6 +278,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         if auto_finish:
             self.finish_conversions()
+        return real_source_amount
 
     def _get_account_id(self, currency: Cryptocurrency):
         id_ = currency.metadata.get('id')
