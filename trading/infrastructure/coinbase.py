@@ -135,6 +135,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
     def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
         return self._get_last_month_prices_remote(cryptocurrency)
+        
         # if cryptocurrency is None:
         #     return []
         #
