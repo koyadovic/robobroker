@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pytz
 from matplotlib.dates import DateFormatter
 
-from shared.domain.configurations import server_get
+from shared.domain.configurations import server_get, server_set
 from shared.domain.dependencies import dependency_dispatcher
 from shared.domain.periodic_tasks import schedule
 from shared.domain.system_logs import add_system_log
@@ -117,18 +117,18 @@ def purchase():
         native_total = 0
         for package in packages:
             native_total += package.currency_amount * current_sell_price
-        # if native_total == 0:
-        #     native_total = trading_source.get_amount_owned(currency) * current_sell_price
+        if native_total == 0:
+            native_total = 1
         profitability = qs.profit_percentage(timedelta(days=7), now=now)
-        if native_total == 0.0 or profitability / native_total < 0:
-            score = profitability / native_total if native_total != 0.0 else -10
+        score = profitability / native_total
+        if score < 0:
             purchase_currency_data.append({
                 'score': score,
                 'currency': currency
             })
 
     purchase_currency_data.sort(key=lambda item: item['score'])
-    for_purchase = [item['currency'] for item in purchase_currency_data[0: 3]]
+    for_purchase = [item['currency'] for item in purchase_currency_data[0: 10]]
 
     parts = len(for_purchase)
     if parts == 0:
@@ -154,6 +154,44 @@ def purchase():
         add_system_log(f'BUY', f'BUY {target_currency.symbol} {source_fragment_amount}')
 
     trading_source.finish_conversions()
+
+
+"""
+Specific commands
+"""
+
+
+def reset_trading():
+    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
+    server_set('enable_trading', {
+        'activated': False
+    })
+
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
+    now = pytz.utc.localize(datetime.utcnow())
+    trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
+
+    trading_source.start_conversions()
+
+    for currency in trading_cryptocurrencies:
+        prices = trading_source.get_last_month_prices(currency)
+        qs = PricesQueryset(prices)
+        if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+            continue
+        packages = storage.get_cryptocurrency_packages(currency)
+        amount = trading_source.get_amount_owned(currency)
+        amount = two_decimals_floor(amount)
+        target = trading_source.get_stable_cryptocurrency()
+        trading_source.convert(currency, amount, target)
+        for package in packages:
+            storage.delete_package(package)
+
+    trading_source.finish_conversions()
+
+    server_set('enable_trading', {
+        'activated': enable_trading_data.get('activated')
+    })
 
 
 """

@@ -73,7 +73,7 @@ class CoinbaseTests(unittest.TestCase):
     def test_convert_currency(self):
         source: CoinbaseCryptoCurrencySource = CoinbaseCryptoCurrencySource(native_currency='EUR')
         source.start_conversions()
-        stable = source.get_stable_cryptocurrency()
+        sour = source.get_trading_cryptocurrency('ALGO')
         target = source.get_trading_cryptocurrency('BTC')
-        source.convert(stable, 10.0, target, test=True)
+        source.convert(sour, 10.0, target, test=True)
         source.finish_conversions()
