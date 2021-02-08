@@ -1,6 +1,7 @@
 import os
 import time
 from datetime import datetime, timedelta
+from json.decoder import JSONDecodeError
 from typing import List, Optional
 
 import pytz
@@ -307,8 +308,11 @@ def fetch_prices():
     current_prices = current_prices_data.get('current_prices', [])
 
     for cryptocurrency in trading_source.get_trading_cryptocurrencies():
-        sell_price = trading_source.get_current_sell_price(cryptocurrency)
-        buy_price = trading_source.get_current_buy_price(cryptocurrency)
+        try:
+            sell_price = trading_source.get_current_sell_price(cryptocurrency)
+            buy_price = trading_source.get_current_buy_price(cryptocurrency)
+        except JSONDecodeError:
+            continue
         if sell_price is None or buy_price is None:
             continue
         now = pytz.utc.localize(datetime.utcnow())
