@@ -128,15 +128,21 @@ def purchase():
             })
 
     purchase_currency_data.sort(key=lambda item: item['score'])
-    for_purchase = [item['currency'] for item in purchase_currency_data[0: 10]]
+
+    trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
+        'max_purchases_each_time': 10,
+        'max_amount_per_purchase': 10,
+    }).data
+
+    for_purchase = [item['currency'] for item in
+                    purchase_currency_data[0: trading_purchase_settings_data.get('max_purchases_each_time')]]
 
     parts = len(for_purchase)
     if parts == 0:
         parts = 1
     source_fragment_amount = math.floor((source_amount / parts) * 100.0) / 100.0
-    # max of 10 DAI
-    if source_fragment_amount > 10:
-        source_fragment_amount = 10
+    if source_fragment_amount > trading_purchase_settings_data.get('max_amount_per_purchase'):
+        source_fragment_amount = trading_purchase_settings_data.get('max_amount_per_purchase')
 
     trading_source.start_conversions()
 
@@ -259,16 +265,19 @@ def _discriminate_by_sell_and_purchase_2(now=None):
         native_total = 0
         for package in packages:
             native_total += package.currency_amount * current_sell_price
+        if native_total == 0:
+            native_total = 1
         profitability = qs.profit_percentage(timedelta(days=7), now=now)
-        if native_total == 0.0 or profitability / native_total < 0:
-            score = profitability / native_total if native_total != 0.0 else -10
-            purchase_currency_data.append({
-                'score': score,
-                'currency': currency
-            })
+        if profitability / native_total < 0:
+            score = profitability / native_total
+            if score < 0:
+                purchase_currency_data.append({
+                    'score': score,
+                    'currency': currency
+                })
 
     purchase_currency_data.sort(key=lambda item: item['score'])
-    for_purchase = [item['currency'] for item in purchase_currency_data[0: 3]]
+    for_purchase = [item['currency'] for item in purchase_currency_data[0: 10]]
 
     _plot_prices(for_sell, f'For sell {now}', now)
     _plot_prices(for_purchase, f'For purchase {now}', now)
