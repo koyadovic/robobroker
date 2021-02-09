@@ -186,9 +186,9 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         ) for p in data]
 
     def start_conversions(self):
-        # TODO test login
-        # TODO get headless from database setting
-        self.driver = get_current_browser_driver(headless=False)
+        selenium_headless_chrome_convert = server_get(
+            'selenium_headless_chrome_convert', default_data={'enabled': False}).data
+        self.driver = get_current_browser_driver(headless=selenium_headless_chrome_convert.get('enabled', False))
 
     def finish_conversions(self):
         self.driver.quit()
