@@ -7,15 +7,10 @@ from shared.domain.configurations import server_get, server_set
 from shared.domain.dependencies import dependency_dispatcher
 from shared.domain.periodic_tasks import schedule
 from shared.domain.system_logs import add_system_log
-from trading.domain.entities import Cryptocurrency, Package
+from trading.domain.entities import Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 import matplotlib.pyplot as plt
-from typing import List
-
 import statistics
-import math
-
-from trading.domain.tools.money import two_decimals_floor, eight_decimals_floor
 from trading.domain.tools.prices import PricesQueryset
 from trading.domain.tools.stats import profit_difference_percentage
 
@@ -75,9 +70,22 @@ def sell():
             if len(profits) == 0:
                 profits = [0.0]
 
-            if round(amount) > 0.0:
+            if round(amount) > 1.0:
                 target = trading_source.get_stable_cryptocurrency()
-                trading_source.convert(currency, amount, target)
+                real_source_amount, _ = trading_source.convert(currency, amount, target)
+
+                mean_bought_at_price = statistics.mean([package.bought_at_price for package in remove_packages])
+                remaining = amount - real_source_amount
+                operation_datetime = pytz.utc.localize(datetime.utcnow()) if len(remove_packages) == 0 else \
+                    remove_packages[0].operation_datetime
+
+                package = Package(
+                    currency_symbol=currency.symbol,
+                    currency_amount=remaining,
+                    bought_at_price=mean_bought_at_price,
+                    operation_datetime=operation_datetime,
+                )
+                storage.save_package(package)
                 for package in remove_packages:
                     storage.delete_package(package)
                 add_system_log(f'SELL', f'SELL {currency.symbol} {amount} profit: {statistics.mean(profits)}%')
@@ -149,7 +157,9 @@ def purchase():
     for target_currency in for_purchase:
         prices = trading_source.get_last_month_prices(target_currency)
         current_buy_price = prices[-1].buy_price
-        converted_target_amount = trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
+        _, converted_target_amount = trading_source.convert(source_cryptocurrency,
+                                                            source_fragment_amount,
+                                                            target_currency)
         package = Package(
             currency_symbol=target_currency.symbol,
             currency_amount=converted_target_amount,

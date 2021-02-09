@@ -195,7 +195,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
     @execution_with_attempts(attempts=3)
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
-                target_cryptocurrency: Cryptocurrency, test=False) -> float:
+                target_cryptocurrency: Cryptocurrency, test=False) -> tuple:
 
         source_amount = float(source_amount)
 
@@ -299,7 +299,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             self.finish_conversions()
 
         print(f'{source_cryptocurrency.symbol} {real_source_amount} --> {target_cryptocurrency.symbol} {real_target_amount}')
-        return real_target_amount
+        return real_source_amount, real_target_amount
 
     def _get_account_id(self, currency: Cryptocurrency):
         id_ = currency.metadata.get('id')
