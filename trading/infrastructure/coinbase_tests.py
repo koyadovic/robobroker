@@ -75,5 +75,6 @@ class CoinbaseTests(unittest.TestCase):
         source.start_conversions()
         sour = source.get_trading_cryptocurrency('ALGO')
         target = source.get_trading_cryptocurrency('DAI')
-        source.convert(sour, 10.0, target, test=True)
+        real_source, real_target = source.convert(sour, 10.0, target, test=True)
+        print(real_source, real_target)
         source.finish_conversions()
