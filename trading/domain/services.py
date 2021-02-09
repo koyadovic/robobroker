@@ -267,6 +267,35 @@ def list_package_profits():
         print(f'    > Total Spent EUR {total_spent} - Total current value EUR {total_current_value} - Profit: {statistics.mean(total_profits)}')
 
 
+def show_global_profit_stats():
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Global profit stats')
+    global_profits_data = server_get('global_profits', default_data={'records': []}).data
+
+    x = []
+    y_total = []
+    y_profit = []
+
+    for record in global_profits_data.get('records', list()):
+        # {'datetime': str(now), 'total': total, 'profit': 0.0}
+        x.append(datetime.strptime(record.get('datetime'), '%Y-%m-%d'))
+        y_total.append(record.get('total'))
+        y_profit.append(record.get('profit'))
+
+    axs[0].plot(x, y_total)
+    axs[0].set_xlabel('Amount')
+    axs[0].xaxis.set_label_coords(0.5, 0.5)
+    axs[0].xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+
+    axs[1].plot(x, y_profit)
+    axs[1].set_xlabel('Profit')
+    axs[1].xaxis.set_label_coords(0.5, 0.5)
+    axs[1].xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+
+    plt.tight_layout()
+    plt.show()
+
+
 @schedule(weekday='0', hour='0', minute='0', unique_name='compute_global_profit', priority=5)
 def compute_global_profit():
     global_profits_data = server_get('global_profits', default_data={'records': []}).data
@@ -277,7 +306,7 @@ def compute_global_profit():
     for currency in trading_source.get_trading_cryptocurrencies():
         total += trading_source.get_native_amount_owned(currency)
 
-    current = {'datetime': str(now), 'total': total, 'profit': 0.0}
+    current = {'datetime': now.strftime('%Y-%m-%d'), 'total': total, 'profit': 0.0}
     if len(global_profits_data['records']) == 0:
         last = None
     else:
