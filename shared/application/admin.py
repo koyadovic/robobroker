@@ -33,6 +33,7 @@ class DUserConfigurationAdmin(admin.ModelAdmin):
 
 
 class DSystemLogAdmin(admin.ModelAdmin):
+    list_display = ['instant', 'log_type', 'text']
     list_filter = ['log_type']
 
 

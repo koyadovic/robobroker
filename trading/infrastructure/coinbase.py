@@ -85,8 +85,6 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             cryptocurrencies = []
             for account in accounts:
                 symbol = account.balance.currency
-                if symbol in ignored_coinbase_currencies:
-                    continue
                 cryptocurrencies.append({
                     'symbol': symbol,
                     'metadata': {'id': account.id}
@@ -95,7 +93,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                 'ts': now_ts,
                 'cryptocurrencies': cryptocurrencies
             })
-        return [Cryptocurrency(**c) for c in cryptocurrencies]
+        all_currencies = [Cryptocurrency(**c) for c in cryptocurrencies]
+        return [c for c in all_currencies if c.symbol not in ignored_coinbase_currencies]
 
     def get_trading_cryptocurrency(self, symbol: str) -> Optional[Cryptocurrency]:
         for currency in self.get_trading_cryptocurrencies():

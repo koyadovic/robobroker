@@ -17,8 +17,29 @@ from trading.domain.tools.stats import profit_difference_percentage
 COMMON_CURRENCY = 'EUR'
 
 
-@schedule(minute='*', unique_name='trade', priority=5)
+@schedule(minute='0', unique_name='sell_operations_0', priority=5)
+def sell0():
+    sell()
+
+
+@schedule(minute='15', unique_name='sell_operations_15', priority=5)
+def sell15():
+    sell()
+
+
+@schedule(minute='30', unique_name='sell_operations_30', priority=5)
+def sell30():
+    sell()
+
+
+@schedule(minute='45', unique_name='sell_operations_45', priority=5)
+def sell45():
+    sell()
+
+
 def sell():
+    now = pytz.utc.localize(datetime.utcnow())
+    print(f'SELL')
     enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
     enable_trading = enable_trading_data.get('activated')
     if not enable_trading:
@@ -27,12 +48,15 @@ def sell():
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
 
-    now = pytz.utc.localize(datetime.utcnow())
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
 
-    trading_source.start_conversions()
+    started_conversions = False
 
     for currency in trading_cryptocurrencies:
+        packages = storage.get_cryptocurrency_packages(currency)
+        if len(packages) == 0:
+            continue
+
         prices = trading_source.get_last_month_prices(currency)
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
@@ -42,13 +66,13 @@ def sell():
         packages = storage.get_cryptocurrency_packages(currency)
 
         """
-        1.- Para vender, rentabilidad últimas 3h tendría que ser < -5 y tener paquetes que cumplan:
-                + Que alguno ofrezca una rentabilidad de > 20%
-                + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
-                + Que tengan más de n meses de antiguedad. Que sea configurable.
+        1.- Para vender, rentabilidad últimas 3h tendría que ser < -3 y tener paquetes que cumplan:
+            + Que alguno ofrezca una rentabilidad de > 20%
+            + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
+            + Que tengan más de n meses de antiguedad. Que sea configurable.
         """
         profit_3h = qs.profit_percentage(timedelta(hours=3), now=now)
-        if profit_3h < -5:
+        if profit_3h < -3:
             amount = 0.0
             remove_packages = []
             profits = []
@@ -71,6 +95,10 @@ def sell():
                 profits = [0.0]
 
             if round(amount) > 1.0:
+                if not started_conversions:
+                    trading_source.start_conversions()
+                    started_conversions = True
+
                 target = trading_source.get_stable_cryptocurrency()
                 real_source_amount, _ = trading_source.convert(currency, amount, target)
 
@@ -90,11 +118,32 @@ def sell():
                     storage.delete_package(package)
                 add_system_log(f'SELL', f'SELL {currency.symbol} {amount} profit: {statistics.mean(profits)}%')
 
-    trading_source.finish_conversions()
+    if started_conversions:
+        trading_source.finish_conversions()
 
 
-@schedule(minute='0', unique_name='trade', priority=4)
+@schedule(minute='0', unique_name='purchase_operations_0', priority=4)
+def purchase0():
+    purchase()
+
+
+# @schedule(minute='15', unique_name='purchase_operations_15', priority=4)
+# def purchase15():
+#     purchase()
+#
+#
+# @schedule(minute='30', unique_name='purchase_operations_30', priority=4)
+# def purchase30():
+#     purchase()
+#
+#
+# @schedule(minute='45', unique_name='purchase_operations_45', priority=4)
+# def purchase45():
+#     purchase()
+
+
 def purchase():
+    print(f'PURCHASE')
     enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
     enable_trading = enable_trading_data.get('activated')
     if not enable_trading:
@@ -113,6 +162,9 @@ def purchase():
     purchase_currency_data = []
 
     for currency in trading_cryptocurrencies:
+        if currency.symbol == 'DAI':
+            continue
+
         prices = trading_source.get_last_month_prices(currency)
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
@@ -122,19 +174,24 @@ def purchase():
         current_sell_price = prices[-1].sell_price
         price_mean = statistics.mean([p.sell_price for p in prices])
         price_profit_from_mean = profit_difference_percentage(price_mean, current_sell_price)
+        if price_profit_from_mean >= 0:
+            continue
         native_amount_owned = 0
         for package in packages:
             native_amount_owned += package.currency_amount * current_sell_price
         if native_amount_owned < 1:
             native_amount_owned = 1
 
-        # special score computed with profit from mean and divided by native amount owned
-        score = price_profit_from_mean / native_amount_owned
         purchase_currency_data.append({
-            'score': score,
+            'price_profit_from_mean': price_profit_from_mean,
+            'native_amount_owned': native_amount_owned,
             'currency': currency
         })
 
+    max_native_amount_owned = max([item['native_amount_owned'] for item in purchase_currency_data])
+    native_amount_owned_factor = 20 / max_native_amount_owned
+    for item in purchase_currency_data:
+        item['score'] = item['price_profit_from_mean'] + (item['native_amount_owned'] * native_amount_owned_factor)
     purchase_currency_data.sort(key=lambda item: item['score'])
 
     trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
@@ -151,6 +208,9 @@ def purchase():
     source_fragment_amount = source_amount / parts
     if source_fragment_amount > max_amount_per_purchase:
         source_fragment_amount = max_amount_per_purchase
+
+    if round(source_fragment_amount) == 0.0:
+        return
 
     trading_source.start_conversions()
 
@@ -189,17 +249,20 @@ def reset_trading():
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
 
     trading_source.start_conversions()
+    target = trading_source.get_stable_cryptocurrency()
 
     for currency in trading_cryptocurrencies:
-        amount = trading_source.get_amount_owned(currency)
-        if round(amount) == 0.0:
+        if currency.symbol == target.symbol:
+            continue
+        native_amount = trading_source.get_native_amount_owned(currency)
+        if round(native_amount) == 0.0:
             continue
         prices = trading_source.get_last_month_prices(currency)
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
             continue
+        amount = trading_source.get_amount_owned(currency)
         packages = storage.get_cryptocurrency_packages(currency)
-        target = trading_source.get_stable_cryptocurrency()
         trading_source.convert(currency, amount, target)
         for package in packages:
             storage.delete_package(package)
@@ -226,9 +289,10 @@ def reset_currency(symbol: str):
 
     if source.symbol == target.symbol:
         return
-    amount = trading_source.get_amount_owned(source)
-    if round(amount) == 0.0:
+    native_amount = trading_source.get_native_amount_owned(source)
+    if round(native_amount) == 0.0:
         return
+    amount = trading_source.get_amount_owned(source)
     prices = trading_source.get_last_month_prices(source)
     qs = PricesQueryset(prices)
     if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
@@ -258,6 +322,8 @@ def list_package_profits():
 
     for currency in trading_cryptocurrencies:
         packages = storage.get_cryptocurrency_packages(currency)
+        if len(packages) == 0:
+            continue
         current_price = trading_source.get_current_sell_price(currency)
         total_spent = 0.0
         total_current_value = 0.0
@@ -270,11 +336,11 @@ def list_package_profits():
             total_spent += spent
             total_current_value += current_value
             total_profits.append(profit)
-            print(f'    > Spent EUR {spent} - Current value EUR {current_value} - Profit: {profit}%')
+            print(f'    > Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Profit: {round(profit, 2)}%')
         if len(total_profits) == 0:
             total_profits = [0.0]
         print('    ' + ('-' * 75))
-        print(f'    > Total Spent EUR {total_spent} - Total current value EUR {total_current_value} - Profit: {statistics.mean(total_profits)}')
+        print(f'    > Total Spent EUR {round(total_spent, 2)} - Total current value EUR {round(total_current_value, 2)} - Profit: {round(statistics.mean(total_profits), 2)}')
 
 
 def show_global_profit_stats():
