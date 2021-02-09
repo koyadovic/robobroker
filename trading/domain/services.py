@@ -268,7 +268,6 @@ def compute_global_profit():
     server_set('global_profits', global_profits_data)
 
 
-
 """
 Obsolete
 """
