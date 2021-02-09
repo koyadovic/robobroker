@@ -245,6 +245,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         else:
             raise Exception()
 
+        time.sleep(1)
+
         # find the currency
         self.driver.find_element_by_css_selector('div[data-element-handle="' + target_cryptocurrency_html_element_attr + '"]').click()
 
