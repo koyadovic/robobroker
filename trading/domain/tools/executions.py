@@ -1,3 +1,6 @@
+import traceback
+
+
 def execution_with_attempts(attempts=3):
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -9,5 +12,8 @@ def execution_with_attempts(attempts=3):
                 except Exception as e:
                     if n >= attempts:
                         raise e
+                    else:
+                        traceback.print_exc()
+                        print(f'WARN: Exception: {str(e)}')
         return wrapper
     return decorator

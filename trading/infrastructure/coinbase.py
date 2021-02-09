@@ -197,6 +197,10 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
     def convert(self, source_cryptocurrency: Cryptocurrency, source_amount: float,
                 target_cryptocurrency: Cryptocurrency, test=False) -> float:
 
+        source_amount = float(source_amount)
+
+        print(f'Convert {source_cryptocurrency.symbol} {source_amount} --> {target_cryptocurrency.symbol}')
+
         target_cryptocurrency_html_element_attr = coinbase_attribute_conv_table[target_cryptocurrency.symbol]
 
         sell_price = self.get_current_sell_price(source_cryptocurrency)
@@ -241,13 +245,14 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         else:
             raise Exception()
 
+        time.sleep(2)
+
         # find the currency
-        self.driver.find_element_by_xpath(
-            '//div[@data-element-handle="' + target_cryptocurrency_html_element_attr + '"]').click()
+        self.driver.find_element_by_css_selector('div[data-element-handle="' + target_cryptocurrency_html_element_attr + '"]').click()
 
         # introduces cantidad
         real_source_amount = None
-        for element in self.driver.find_elements_by_css_selector('input[minlength="1"]'):
+        for element in self.driver.find_elements_by_css_selector('input[aria-label="Importe"]'):
             if element.is_displayed():
                 element.click()
                 native_amount = (source_amount * current_price) + 0.1
@@ -268,15 +273,17 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                         raise Exception(f'Cannot find paragraph with real source amount')
                 break
         else:
-            raise Exception()
+            raise Exception(f'Could not find input for the amount')
+
+        time.sleep(2)
 
         # vista previa de la conversión
         self.driver.find_element_by_css_selector('button[data-element-handle="convert-preview-button"]').click()
 
-        time.sleep(15)
+        time.sleep(2)
 
         # convertir ahora
-        convert_button = self.driver.find_elements_by_css_selector('button[data-element-handle="convert-confirm-button"]')
+        convert_button = self.driver.find_element_by_css_selector('button[data-element-handle="convert-confirm-button"]')
         if not test:
             convert_button.click()
 
