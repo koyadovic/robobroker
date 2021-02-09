@@ -218,7 +218,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         self.driver.get(f'https://www.coinbase.com/accounts/{source_id}')
 
-        time.sleep(5)
+        time.sleep(4)
 
         # Vista detallada
         for element in self.driver.find_elements_by_css_selector('div[data-is-active="0"]'):
@@ -245,10 +245,10 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         else:
             raise Exception()
 
-        time.sleep(2)
-
         # find the currency
         self.driver.find_element_by_css_selector('div[data-element-handle="' + target_cryptocurrency_html_element_attr + '"]').click()
+
+        time.sleep(1)
 
         # introduces cantidad
         real_source_amount = None
@@ -275,12 +275,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         else:
             raise Exception(f'Could not find input for the amount')
 
-        time.sleep(2)
-
         # vista previa de la conversión
         self.driver.find_element_by_css_selector('button[data-element-handle="convert-preview-button"]').click()
-
-        time.sleep(2)
 
         # convertir ahora
         convert_button = self.driver.find_element_by_css_selector('button[data-element-handle="convert-confirm-button"]')
