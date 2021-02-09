@@ -252,6 +252,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         time.sleep(1)
 
+        real_target_amount = 0.0
+
         # introduces cantidad
         real_source_amount = None
         for element in self.driver.find_elements_by_css_selector('input[aria-label="Importe"]'):
@@ -264,8 +266,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                     time.sleep(2)
                     convert_from_element = self.driver.find_element_by_css_selector('div[data-element-handle="convert-from-selector"]')
                     for paragraph_element in convert_from_element.find_elements_by_xpath('.//p'):
-                        if source_cryptocurrency.symbol in paragraph_element.text:
-                            real_value = str(paragraph_element.text.split(source_cryptocurrency.symbol)[0]).strip()
+                        if source_cryptocurrency.symbol.lower() in paragraph_element.text.lower():
+                            real_value = str(paragraph_element.text.lower().split(source_cryptocurrency.symbol.lower())[0]).strip()
                             real_value = real_value.replace(',', '.')
                             real_source_amount = float(real_value)
                             if real_source_amount > source_amount:
@@ -273,6 +275,14 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                             break
                     else:
                         raise Exception(f'Cannot find paragraph with real source amount')
+
+                convert_to_element = self.driver.find_element_by_css_selector(
+                    'div[data-element-handle="convert-to-selector"]')
+                for paragraph_element in convert_to_element.find_elements_by_xpath('.//p'):
+                    if target_cryptocurrency.symbol.lower() in paragraph_element.text.lower():
+                        real_value = str(paragraph_element.text.lower().split(target_cryptocurrency.symbol.lower())[0]).strip()
+                        real_value = real_value.replace(',', '.')
+                        real_target_amount = float(real_value)
                 break
         else:
             raise Exception(f'Could not find input for the amount')
@@ -287,7 +297,9 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         if auto_finish:
             self.finish_conversions()
-        return real_source_amount
+
+        print(f'{source_cryptocurrency.symbol} {real_source_amount} --> {target_cryptocurrency.symbol} {real_target_amount}')
+        return real_target_amount
 
     def _get_account_id(self, currency: Cryptocurrency):
         id_ = currency.metadata.get('id')

@@ -149,15 +149,15 @@ def purchase():
     for target_currency in for_purchase:
         prices = trading_source.get_last_month_prices(target_currency)
         current_buy_price = prices[-1].buy_price
-        real_source_fragment_amount = trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
+        target_amount = trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
         package = Package(
             currency_symbol=target_currency.symbol,
-            currency_amount=real_source_fragment_amount,
+            currency_amount=target_amount,
             bought_at_price=current_buy_price,
             operation_datetime=pytz.utc.localize(datetime.utcnow()),
         )
         storage.save_package(package)
-        add_system_log(f'BUY', f'BUY {target_currency.symbol} {real_source_fragment_amount}')
+        add_system_log(f'BUY', f'BUY {target_currency.symbol} {target_amount}')
 
     trading_source.finish_conversions()
 
