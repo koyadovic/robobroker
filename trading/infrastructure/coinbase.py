@@ -121,6 +121,10 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         account = self._client.get_account(cryptocurrency.symbol)
         return float(account.balance.amount)
 
+    def get_native_amount_owned(self, cryptocurrency: Cryptocurrency) -> float:
+        account = self._client.get_account(cryptocurrency.symbol)
+        return float(account.native_balance.amount)
+
     def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         try:
             response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')

@@ -19,6 +19,9 @@ class ICryptoCurrencySource:
     def get_amount_owned(self, cryptocurrency: Cryptocurrency) -> float:
         raise NotImplementedError
 
+    def get_native_amount_owned(self, cryptocurrency: Cryptocurrency) -> float:
+        raise NotImplementedError
+
     def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         raise NotImplementedError
 

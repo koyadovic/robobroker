@@ -241,6 +241,35 @@ def reset_currency(symbol: str):
 
 
 """
+Global profit
+"""
+
+
+@schedule(weekday='0', hour='0', minute='0', unique_name='compute_global_profit', priority=5)
+def compute_global_profit():
+    global_profits_data = server_get('global_profits', default_data={'records': []}).data
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+
+    now = pytz.utc.localize(datetime.utcnow())
+    total = 0.0
+    for currency in trading_source.get_trading_cryptocurrencies():
+        total += trading_source.get_native_amount_owned(currency)
+
+    current = {'datetime': str(now), 'total': total, 'profit': 0.0}
+    if len(global_profits_data['records']) == 0:
+        last = None
+    else:
+        last = global_profits_data['records'][-1]
+
+    if last is not None:
+        current['profit'] = profit_difference_percentage(last['total'], current['total'])
+
+    global_profits_data['records'].append(current)
+    server_set('global_profits', global_profits_data)
+
+
+
+"""
 Obsolete
 """
 
