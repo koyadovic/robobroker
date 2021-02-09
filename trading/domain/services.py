@@ -133,31 +133,31 @@ def purchase():
         'max_purchases_each_time': 10,
         'max_amount_per_purchase': 10,
     }).data
+    max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
+    max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
 
-    for_purchase = [item['currency'] for item in
-                    purchase_currency_data[0: trading_purchase_settings_data.get('max_purchases_each_time')]]
-
+    for_purchase = [item['currency'] for item in purchase_currency_data[0:max_purchases_each_time]]
     parts = len(for_purchase)
     if parts == 0:
         parts = 1
     source_fragment_amount = source_amount / parts
-    if source_fragment_amount > trading_purchase_settings_data.get('max_amount_per_purchase'):
-        source_fragment_amount = trading_purchase_settings_data.get('max_amount_per_purchase')
+    if source_fragment_amount > max_amount_per_purchase:
+        source_fragment_amount = max_amount_per_purchase
 
     trading_source.start_conversions()
 
     for target_currency in for_purchase:
         prices = trading_source.get_last_month_prices(target_currency)
         current_buy_price = prices[-1].buy_price
-        target_amount = trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
+        converted_target_amount = trading_source.convert(source_cryptocurrency, source_fragment_amount, target_currency)
         package = Package(
             currency_symbol=target_currency.symbol,
-            currency_amount=target_amount,
+            currency_amount=converted_target_amount,
             bought_at_price=current_buy_price,
             operation_datetime=pytz.utc.localize(datetime.utcnow()),
         )
         storage.save_package(package)
-        add_system_log(f'BUY', f'BUY {target_currency.symbol} {target_amount}')
+        add_system_log(f'BUY', f'BUY {target_currency.symbol} {converted_target_amount}')
 
     trading_source.finish_conversions()
 
