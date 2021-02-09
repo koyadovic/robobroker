@@ -241,8 +241,34 @@ def reset_currency(symbol: str):
 
 
 """
-Global profit
+Profits
 """
+
+
+def list_package_profits():
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
+    trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
+
+    for currency in trading_cryptocurrencies:
+        packages = storage.get_cryptocurrency_packages(currency)
+        current_price = trading_source.get_current_sell_price(currency)
+        total_spent = 0.0
+        total_current_value = 0.0
+        total_profits = []
+        print(f'\nFor {currency}:')
+        for package in packages:
+            spent = package.currency_amount * package.bought_at_price
+            current_value = package.currency_amount * current_price
+            profit = profit_difference_percentage(spent, current_value)
+            total_spent += spent
+            total_current_value += current_value
+            total_profits.append(profit)
+            print(f'    > Spent EUR {spent} - Current value EUR {current_value} - Profit: {profit}%')
+        if len(total_profits) == 0:
+            total_profits = [0.0]
+        print('    ' + ('-' * 75))
+        print(f'    > Total Spent EUR {total_spent} - Total current value EUR {total_current_value} - Profit: {statistics.mean(total_profits)}')
 
 
 @schedule(weekday='0', hour='0', minute='0', unique_name='compute_global_profit', priority=5)
