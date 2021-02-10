@@ -12,10 +12,18 @@ from trading.domain.tools.stats import profit_difference_percentage
 class Command(BaseCommand):
     help = 'Splines test'
 
+    def add_arguments(self, parser):
+        parser.add_argument('symbol', nargs='?', type=str)
+
     def handle(self, *args, **options):
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+        symbol = options.get('symbol', None)
+
         for currency in trading_source.get_trading_cryptocurrencies():
-            price, current_price_derivative = get_last_inflexion_point_price(currency)
+            if symbol is not None and currency.symbol != symbol:
+                continue
+
+            price, ahead_derivative = get_last_inflexion_point_price(currency)
             if price is None:
                 continue
             prices = trading_source.get_last_month_prices(currency)
@@ -24,9 +32,9 @@ class Command(BaseCommand):
             profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
 
             status = 'estable'
-            if current_price_derivative > 0.0:
+            if ahead_derivative > 0.0:
                 status = 'subiendo'
-            elif current_price_derivative < 0.0:
+            elif ahead_derivative < 0.0:
                 status = 'bajando'
 
             fig, axs = plt.subplots(1)

@@ -51,23 +51,23 @@ def sell():
             + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
             + Que tengan más de n meses de antiguedad. Que sea configurable.
         """
-        price, current_price_derivative = get_last_inflexion_point_price(currency)
+        price, ahead_derivative = get_last_inflexion_point_price(currency)
         if price is None:
             continue
         if price.instant > now - timedelta(hours=3):
             continue
         # profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
         # if profit_from_last_inflexion_point < 0:
-        if current_price_derivative < 0:
+        if ahead_derivative < 0:
             amount = 0.0
             remove_packages = []
             profits = []
             for package in packages:
                 package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
                 sell_it = False
-                if package_profit > 20:
+                if package_profit > 10:
                     sell_it = True
-                elif 5 <= package_profit <= 20 and now - timedelta(days=7) >= package.operation_datetime:
+                elif 5 <= package_profit <= 10 and now - timedelta(days=7) >= package.operation_datetime:
                     sell_it = True
                 # TODO add auto_sell
 
@@ -107,7 +107,8 @@ def sell():
         trading_source.finish_conversions()
 
 
-@periodic_task(run_every=crontab(hour='*/6', minute='0'), name="purchase_operation_periodic", ignore_result=True)
+# @periodic_task(run_every=crontab(hour='*/6', minute='0'), name="purchase_operation_periodic", ignore_result=True)
+@periodic_task(run_every=crontab(hour='17', minute='30'), name="purchase_operation_periodic", ignore_result=True)
 def purchase():
     enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
     enable_trading = enable_trading_data.get('activated')
@@ -153,12 +154,14 @@ def purchase():
             'currency': currency
         })
 
+    # sort by precedence
     max_native_amount_owned = max([item['native_amount_owned'] for item in purchase_currency_data])
     native_amount_owned_factor = 20 / max_native_amount_owned
     for item in purchase_currency_data:
         item['score'] = item['price_profit_from_mean'] + (item['native_amount_owned'] * native_amount_owned_factor)
     purchase_currency_data.sort(key=lambda item: item['score'])
 
+    # get trading settings
     trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
         'max_purchases_each_time': 10,
         'max_amount_per_purchase': 10,
@@ -220,21 +223,31 @@ def get_last_inflexion_point_price(currency):
     x = np.array([price.instant.timestamp() for price in prices])
     y = np.array([price.buy_price for price in prices])
 
-    f, _ = cubic_splines_function(x=x, y=y, number_of_knots=10)
+    different_days = 0
+    days = []
+    for price in prices:
+        if price.instant.date() not in days:
+            days.append(price.instant.date())
+            different_days += 1
+
+    number_of_knots = round(different_days / 1.5)
+
+    print(f'Different days: {different_days}')
+    print(f'number_of_knots: {number_of_knots}')
+
+    f, _ = cubic_splines_function(x=x, y=y, number_of_knots=number_of_knots)
 
     for idx in range(len(prices) - 1, -1, -1):
         price = prices[idx]
         timestamp = price.instant.timestamp()
-        minutes_ahead = timestamp + 300
-        minutes_backwards = timestamp - 300
+        minutes_ahead = timestamp + 600
+        minutes_backwards = timestamp - 600
 
         ahead = derivative(f, minutes_ahead)
         backwards = derivative(f, minutes_backwards)
 
-        current_price_derivative = derivative(f, prices[-1].instant.timestamp())
-
         if ahead < 0 < backwards or ahead > 0 > backwards:
-            return price, current_price_derivative
+            return price, ahead
 
     return None, None
 
