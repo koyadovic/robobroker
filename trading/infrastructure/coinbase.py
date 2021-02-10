@@ -60,6 +60,7 @@ coinbase_attribute_conv_table = {
     'GRT': 'convert-to-select-the-graph',
     'BNT': 'convert-to-select-bancor-network-token',
     'SNX': 'convert-to-select-synthetix-network-token',
+    'ALGO': 'convert-to-select-algorand',
 }
 
 
