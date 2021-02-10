@@ -1,78 +1,25 @@
-import math
 from datetime import datetime, timedelta
+import numpy as np
 
 import pytz
+from celery.schedules import crontab
+from celery.task import periodic_task
 from matplotlib.dates import DateFormatter
 
 from shared.domain.configurations import server_get, server_set
 from shared.domain.dependencies import dependency_dispatcher
-from shared.domain.periodic_tasks import schedule
 from shared.domain.system_logs import add_system_log
 from trading.domain.entities import Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 import matplotlib.pyplot as plt
 import statistics
 from trading.domain.tools.prices import PricesQueryset
-from trading.domain.tools.stats import profit_difference_percentage
+from trading.domain.tools.stats import profit_difference_percentage, cubic_splines_function, derivative
 
 COMMON_CURRENCY = 'EUR'
 
 
-@schedule(minute='0', unique_name='sell_operations_0', priority=5)
-def sell0():
-    sell()
-
-
-@schedule(minute='10', unique_name='sell_operations_10', priority=5)
-def sell10():
-    sell()
-
-
-@schedule(minute='15', unique_name='sell_operations_15', priority=5)
-def sell15():
-    sell()
-
-
-@schedule(minute='20', unique_name='sell_operations_20', priority=5)
-def sell20():
-    sell()
-
-
-@schedule(minute='25', unique_name='sell_operations_25', priority=5)
-def sell25():
-    sell()
-
-
-@schedule(minute='30', unique_name='sell_operations_30', priority=5)
-def sell30():
-    sell()
-
-
-@schedule(minute='35', unique_name='sell_operations_35', priority=5)
-def sell35():
-    sell()
-
-
-@schedule(minute='40', unique_name='sell_operations_40', priority=5)
-def sell40():
-    sell()
-
-
-@schedule(minute='45', unique_name='sell_operations_45', priority=5)
-def sell45():
-    sell()
-
-
-@schedule(minute='50', unique_name='sell_operations_50', priority=5)
-def sell50():
-    sell()
-
-
-@schedule(minute='55', unique_name='sell_operations_55', priority=5)
-def sell55():
-    sell()
-
-
+@periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=True)
 def sell():
     now = pytz.utc.localize(datetime.utcnow())
     print(f'SELL')
@@ -104,8 +51,16 @@ def sell():
             + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
             + Que tengan más de n meses de antiguedad. Que sea configurable.
         """
-        profit_3h = qs.profit_percentage(timedelta(hours=3), now=now)
-        if profit_3h < -3:
+        price = get_last_inflexion_point_price(currency)
+        if price is None:
+            continue
+
+        if price.instant > now - timedelta(hours=3):
+            continue
+
+        # profit_3h = qs.profit_percentage(timedelta(hours=3), now=now)
+        profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
+        if profit_from_last_inflexion_point < -5:
             amount = 0.0
             remove_packages = []
             profits = []
@@ -154,28 +109,8 @@ def sell():
         trading_source.finish_conversions()
 
 
-@schedule(hour='0', unique_name='purchase_operations_0', priority=4)
-def purchase0():
-    purchase()
-
-
-@schedule(hour='6', unique_name='purchase_operations_15', priority=4)
-def purchase15():
-    purchase()
-
-
-@schedule(hour='12', unique_name='purchase_operations_30', priority=4)
-def purchase30():
-    purchase()
-
-
-@schedule(hour='18', unique_name='purchase_operations_45', priority=4)
-def purchase45():
-    purchase()
-
-
+@periodic_task(run_every=crontab(hour='*/6', minute='0'), name="purchase_operation_periodic", ignore_result=True)
 def purchase():
-    print(f'PURCHASE')
     enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
     enable_trading = enable_trading_data.get('activated')
     if not enable_trading:
@@ -278,6 +213,34 @@ def purchase():
         add_system_log(f'BUY', f'BUY {target_currency.symbol} {converted_target_amount}')
 
     trading_source.finish_conversions()
+
+
+def get_last_inflexion_point_price(currency):
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    prices = trading_source.get_last_month_prices(currency)
+
+    x = np.array([price.instant.timestamp() for price in prices])
+    y = np.array([price.buy_price for price in prices])
+
+    try:
+        f, _ = cubic_splines_function(x=x, y=y, number_of_knots=10)
+    except ValueError as e:
+        print(f'{currency} ValueError: {e}')
+        return None
+
+    for idx in range(len(prices) - 1, -1, -1):
+        price = prices[idx]
+        timestamp = price.instant.timestamp()
+        minutes_ahead = timestamp + 300
+        minutes_backwards = timestamp - 300
+
+        ahead = derivative(f, minutes_ahead)
+        backwards = derivative(f, minutes_backwards)
+
+        if ahead < 0 < backwards or ahead > 0 > backwards:
+            return price
+
+    return None
 
 
 """
@@ -420,7 +383,7 @@ def show_global_profit_stats():
     plt.show()
 
 
-@schedule(weekday='0', hour='0', minute='0', unique_name='compute_global_profit', priority=5)
+@periodic_task(run_every=crontab(day_of_week='0', hour='0', minute='0'), name="compute_global_profit", ignore_result=True)
 def compute_global_profit():
     global_profits_data = server_get('global_profits', default_data={'records': []}).data
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)

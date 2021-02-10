@@ -61,10 +61,10 @@ def get_polynomial_regression_function(x, y, degree=3):
 
 
 def cubic_splines_function(x=None, y=None, number_of_knots=60):
-    max_x = np.max(x).astype(np.int64)
-    min_x = np.min(x).astype(np.int64)
-    knot_size = (max_x - min_x) // number_of_knots
-    knots = [str(int(min_x + (n * knot_size))) for n in range(number_of_knots)]
+    max_x = np.max(x).astype(np.float64)
+    min_x = np.min(x).astype(np.float64)
+    knot_size = (max_x - min_x) / number_of_knots
+    knots = [str(min_x + (n * knot_size)) for n in range(number_of_knots)]
     str_knots = ','.join(knots)
 
     def dmatrix_lambda(x_parameter):
