@@ -6,6 +6,8 @@ from trading.domain.interfaces import ICryptoCurrencySource
 from trading.domain.services import get_last_inflexion_point_price
 import matplotlib.pyplot as plt
 
+from trading.domain.tools.stats import profit_difference_percentage
+
 
 class Command(BaseCommand):
     help = 'Splines test'
@@ -13,13 +15,22 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
         for currency in trading_source.get_trading_cryptocurrencies():
-            price = get_last_inflexion_point_price(currency)
+            price, current_price_derivative = get_last_inflexion_point_price(currency)
             if price is None:
                 continue
             prices = trading_source.get_last_month_prices(currency)
 
+            current_sell_price = prices[-1].sell_price
+            profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
+
+            status = 'estable'
+            if current_price_derivative > 0.0:
+                status = 'subiendo'
+            elif current_price_derivative < 0.0:
+                status = 'bajando'
+
             fig, axs = plt.subplots(1)
-            fig.suptitle(f'{currency}')
+            fig.suptitle(f'{currency} {round(profit_from_last_inflexion_point, 1)}% - {status}')
             if len(prices) == 0:
                 continue
 

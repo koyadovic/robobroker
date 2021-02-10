@@ -51,16 +51,15 @@ def sell():
             + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
             + Que tengan más de n meses de antiguedad. Que sea configurable.
         """
-        price = get_last_inflexion_point_price(currency)
+        price, current_price_derivative = get_last_inflexion_point_price(currency)
         if price is None:
             continue
 
         if price.instant > now - timedelta(hours=3):
             continue
 
-        # profit_3h = qs.profit_percentage(timedelta(hours=3), now=now)
         profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
-        if profit_from_last_inflexion_point < -5:
+        if profit_from_last_inflexion_point < 0:
             amount = 0.0
             remove_packages = []
             profits = []
@@ -222,11 +221,7 @@ def get_last_inflexion_point_price(currency):
     x = np.array([price.instant.timestamp() for price in prices])
     y = np.array([price.buy_price for price in prices])
 
-    try:
-        f, _ = cubic_splines_function(x=x, y=y, number_of_knots=10)
-    except ValueError as e:
-        print(f'{currency} ValueError: {e}')
-        return None
+    f, _ = cubic_splines_function(x=x, y=y, number_of_knots=10)
 
     for idx in range(len(prices) - 1, -1, -1):
         price = prices[idx]
@@ -237,10 +232,12 @@ def get_last_inflexion_point_price(currency):
         ahead = derivative(f, minutes_ahead)
         backwards = derivative(f, minutes_backwards)
 
-        if ahead < 0 < backwards or ahead > 0 > backwards:
-            return price
+        current_price_derivative = derivative(f, prices[-1].instant.timestamp())
 
-    return None
+        if ahead < 0 < backwards or ahead > 0 > backwards:
+            return price, current_price_derivative
+
+    return None, None
 
 
 """
