@@ -54,12 +54,11 @@ def sell():
         price, current_price_derivative = get_last_inflexion_point_price(currency)
         if price is None:
             continue
-
         if price.instant > now - timedelta(hours=3):
             continue
-
-        profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
-        if profit_from_last_inflexion_point < 0:
+        # profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
+        # if profit_from_last_inflexion_point < 0:
+        if current_price_derivative < 0:
             amount = 0.0
             remove_packages = []
             profits = []
@@ -323,12 +322,16 @@ Profits
 """
 
 
-def list_package_profits():
+def list_package_profits(symbol=None):
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
 
+    trading_cryptocurrencies.sort(key=lambda curr: curr.symbol)
+
     for currency in trading_cryptocurrencies:
+        if symbol is not None and currency.symbol != symbol:
+            continue
         packages = storage.get_cryptocurrency_packages(currency)
         if len(packages) == 0:
             continue
