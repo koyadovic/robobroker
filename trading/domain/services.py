@@ -261,6 +261,8 @@ def purchase():
         else:
             weighted_amount = source_amount_total * (price_profit_from_mean / total_profits)
 
+        print(f'source_amount_total: {source_amount_total}, for currency {target_currency}: {weighted_amount}')
+
         prices = trading_source.get_last_month_prices(target_currency)
         current_buy_price = prices[-1].buy_price
         _, converted_target_amount = trading_source.convert(source_cryptocurrency,
