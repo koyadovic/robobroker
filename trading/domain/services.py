@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 
 import pytz
@@ -22,8 +23,23 @@ def sell0():
     sell()
 
 
+@schedule(minute='10', unique_name='sell_operations_10', priority=5)
+def sell10():
+    sell()
+
+
 @schedule(minute='15', unique_name='sell_operations_15', priority=5)
 def sell15():
+    sell()
+
+
+@schedule(minute='20', unique_name='sell_operations_20', priority=5)
+def sell20():
+    sell()
+
+
+@schedule(minute='25', unique_name='sell_operations_25', priority=5)
+def sell25():
     sell()
 
 
@@ -32,8 +48,28 @@ def sell30():
     sell()
 
 
+@schedule(minute='35', unique_name='sell_operations_35', priority=5)
+def sell35():
+    sell()
+
+
+@schedule(minute='40', unique_name='sell_operations_40', priority=5)
+def sell40():
+    sell()
+
+
 @schedule(minute='45', unique_name='sell_operations_45', priority=5)
 def sell45():
+    sell()
+
+
+@schedule(minute='50', unique_name='sell_operations_50', priority=5)
+def sell50():
+    sell()
+
+
+@schedule(minute='55', unique_name='sell_operations_55', priority=5)
+def sell55():
     sell()
 
 
@@ -47,9 +83,7 @@ def sell():
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
-
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
-
     started_conversions = False
 
     for currency in trading_cryptocurrencies:
@@ -63,7 +97,6 @@ def sell():
             continue
 
         current_sell_price = prices[-1].sell_price
-        packages = storage.get_cryptocurrency_packages(currency)
 
         """
         1.- Para vender, rentabilidad últimas 3h tendría que ser < -3 y tener paquetes que cumplan:
@@ -76,7 +109,6 @@ def sell():
             amount = 0.0
             remove_packages = []
             profits = []
-
             for package in packages:
                 package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
                 sell_it = False
@@ -122,24 +154,24 @@ def sell():
         trading_source.finish_conversions()
 
 
-@schedule(minute='0', unique_name='purchase_operations_0', priority=4)
+@schedule(hour='0', unique_name='purchase_operations_0', priority=4)
 def purchase0():
     purchase()
 
 
-# @schedule(minute='15', unique_name='purchase_operations_15', priority=4)
-# def purchase15():
-#     purchase()
-#
-#
-# @schedule(minute='30', unique_name='purchase_operations_30', priority=4)
-# def purchase30():
-#     purchase()
-#
-#
-# @schedule(minute='45', unique_name='purchase_operations_45', priority=4)
-# def purchase45():
-#     purchase()
+@schedule(hour='6', unique_name='purchase_operations_15', priority=4)
+def purchase15():
+    purchase()
+
+
+@schedule(hour='12', unique_name='purchase_operations_30', priority=4)
+def purchase30():
+    purchase()
+
+
+@schedule(hour='18', unique_name='purchase_operations_45', priority=4)
+def purchase45():
+    purchase()
 
 
 def purchase():
@@ -162,7 +194,7 @@ def purchase():
     purchase_currency_data = []
 
     for currency in trading_cryptocurrencies:
-        if currency.symbol == 'DAI':
+        if currency.symbol == source_cryptocurrency.symbol:
             continue
 
         prices = trading_source.get_last_month_prices(currency)
@@ -201,24 +233,38 @@ def purchase():
     max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
     max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
 
-    for_purchase = [item['currency'] for item in purchase_currency_data[0:max_purchases_each_time]]
-    parts = len(for_purchase)
-    if parts == 0:
-        parts = 1
+    # limit to elements specified
+    purchase_currency_data = purchase_currency_data[0:max_purchases_each_time]
+
+    # get the absolute value as profits are all negative values
+    total_profits = abs(sum([item['price_profit_from_mean'] for item in purchase_currency_data]))
+
+    parts = len(purchase_currency_data) if len(purchase_currency_data) != 0 else 1
     source_fragment_amount = source_amount / parts
     if source_fragment_amount > max_amount_per_purchase:
         source_fragment_amount = max_amount_per_purchase
-
     if round(source_fragment_amount) == 0.0:
         return
 
+    # this is the sum of all equal parts
+    source_amount_total = parts * source_fragment_amount
+
     trading_source.start_conversions()
 
-    for target_currency in for_purchase:
+    for purchase_currency_data_item in purchase_currency_data:
+        target_currency = purchase_currency_data_item['currency']
+        price_profit_from_mean = abs(purchase_currency_data_item['price_profit_from_mean'])
+
+        # more loss from mean prices, more amount to purchase
+        if total_profits == 0.0:
+            weighted_amount = source_fragment_amount
+        else:
+            weighted_amount = source_amount_total * (price_profit_from_mean / total_profits)
+
         prices = trading_source.get_last_month_prices(target_currency)
         current_buy_price = prices[-1].buy_price
         _, converted_target_amount = trading_source.convert(source_cryptocurrency,
-                                                            source_fragment_amount,
+                                                            weighted_amount,
                                                             target_currency)
         package = Package(
             currency_symbol=target_currency.symbol,
