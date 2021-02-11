@@ -35,7 +35,7 @@ _FILE_LOCK = '/tmp/.robobroker_trading'
 
 @periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=False)
 def trade():
-    with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=True):
+    with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=True, raise_exception_if_locked=False):
         now = pytz.utc.localize(datetime.utcnow())
         do_purchase = now.hour % 2 == 0 and now.minute == 0
 
@@ -43,12 +43,20 @@ def trade():
         enable_trading = enable_trading_data.get('activated')
         if not enable_trading:
             return
-        sell()
+
+        print(f'Fetching updated prices ...')
+        trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+        trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
+        all_prices = {}
+        for currency in trading_cryptocurrencies:
+            print(f'Fetching {currency} prices')
+            all_prices[currency.symbol] = trading_source.get_last_month_prices(currency)
+        sell(all_prices=all_prices)
         if do_purchase:
-            purchase()
+            purchase(all_prices=all_prices)
 
 
-def sell():
+def sell(all_prices=None):
     now = pytz.utc.localize(datetime.utcnow())
     log(f'--- INIT SELL ---')
 
@@ -64,7 +72,11 @@ def sell():
                 log(f'Currency {currency} has no packages, ignoring it')
                 continue
 
-            prices = trading_source.get_last_month_prices(currency)
+            if all_prices is None:
+                prices = trading_source.get_last_month_prices(currency)
+            else:
+                prices = all_prices[currency.symbol]
+
             qs = PricesQueryset(prices)
             if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
                 log(f'Currency {currency} has no prices, ignoring it')
@@ -147,7 +159,7 @@ def sell():
     log(f'--- FINISH SELL ---')
 
 
-def purchase():
+def purchase(all_prices=None):
     log(f'--- INIT PURCHASE ---')
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
@@ -168,7 +180,11 @@ def purchase():
             log(f'Ignoring {currency} for purchase')
             continue
 
-        prices = trading_source.get_last_month_prices(currency)
+        if all_prices is None:
+            prices = trading_source.get_last_month_prices(currency)
+        else:
+            prices = all_prices[currency.symbol]
+
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
             log(f'Ignoring {currency} no prices')
@@ -359,7 +375,7 @@ def list_package_profits(symbol=None):
         total_spent = 0.0
         total_current_value = 0.0
         total_profits = []
-        print(f'\nFor {currency}:')
+        print(f'\nFor {currency} (current price: {current_price}):')
         for package in packages:
             spent = package.currency_amount * package.bought_at_price
             current_value = package.currency_amount * current_price
@@ -367,7 +383,7 @@ def list_package_profits(symbol=None):
             total_spent += spent
             total_current_value += current_value
             total_profits.append(profit)
-            print(f'    > Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Profit: {round(profit, 2)}%')
+            print(f'    > Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Bought at price {package.bought_at_price} - Profit: {round(profit, 2)}%')
         if len(total_profits) == 0:
             total_profits = [0.0]
         print('    ' + ('-' * 75))
@@ -403,7 +419,7 @@ def show_global_profit_stats():
     plt.show()
 
 
-@periodic_task(run_every=crontab(day_of_week='0', hour='0', minute='0'), name="compute_global_profit", ignore_result=True)
+@periodic_task(run_every=crontab(hour='0', minute='0'), name="compute_global_profit", ignore_result=True)
 def compute_global_profit():
     global_profits_data = server_get('global_profits', default_data={'records': []}).data
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
