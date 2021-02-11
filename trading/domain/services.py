@@ -5,115 +5,150 @@ import pytz
 from celery.schedules import crontab
 from celery.task import periodic_task
 from matplotlib.dates import DateFormatter
+from sentry_sdk import capture_exception
 
 from shared.domain.configurations import server_get, server_set
 from shared.domain.dependencies import dependency_dispatcher
 from shared.domain.system_logs import add_system_log
+from shared.domain.tools import filelocks
 from trading.domain.entities import Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 import matplotlib.pyplot as plt
 import statistics
 from trading.domain.tools.prices import PricesQueryset
 from trading.domain.tools.stats import profit_difference_percentage, cubic_splines_function, derivative
+from celery.utils.log import get_task_logger
+
+logger = get_task_logger(__name__)
+
+
+def log(text):
+    logger.info(text)
+    print(text)
+
 
 COMMON_CURRENCY = 'EUR'
 
 
-@periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=True)
+_FILE_LOCK = '/tmp/.robobroker_trading'
+
+
+@periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=False)
+def trade():
+    with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=True):
+        now = pytz.utc.localize(datetime.utcnow())
+        do_purchase = now.hour % 2 == 0 and now.minute == 0
+
+        enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
+        enable_trading = enable_trading_data.get('activated')
+        if not enable_trading:
+            return
+        sell()
+        if do_purchase:
+            purchase()
+
+
 def sell():
     now = pytz.utc.localize(datetime.utcnow())
-    print(f'SELL')
-    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
-    enable_trading = enable_trading_data.get('activated')
-    if not enable_trading:
-        return
+    log(f'--- INIT SELL ---')
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     started_conversions = False
 
-    for currency in trading_cryptocurrencies:
-        packages = storage.get_cryptocurrency_packages(currency)
-        if len(packages) == 0:
-            continue
+    try:
+        for currency in trading_cryptocurrencies:
+            packages = storage.get_cryptocurrency_packages(currency)
+            if len(packages) == 0:
+                log(f'Currency {currency} has no packages, ignoring it')
+                continue
 
-        prices = trading_source.get_last_month_prices(currency)
-        qs = PricesQueryset(prices)
-        if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
-            continue
+            prices = trading_source.get_last_month_prices(currency)
+            qs = PricesQueryset(prices)
+            if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+                log(f'Currency {currency} has no prices, ignoring it')
+                continue
 
-        current_sell_price = prices[-1].sell_price
+            current_sell_price = prices[-1].sell_price
 
-        """
-        1.- Para vender, rentabilidad últimas 3h tendría que ser < -3 y tener paquetes que cumplan:
-            + Que alguno ofrezca una rentabilidad de > 20%
-            + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
-            + Que tengan más de n meses de antiguedad. Que sea configurable.
-        """
-        price, ahead_derivative = get_last_inflexion_point_price(currency)
-        if price is None:
-            continue
-        if price.instant > now - timedelta(hours=3):
-            continue
-        # profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)
-        # if profit_from_last_inflexion_point < 0:
-        if ahead_derivative < 0:
-            amount = 0.0
-            remove_packages = []
-            profits = []
-            for package in packages:
-                package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
-                sell_it = False
-                if package_profit > 10:
-                    sell_it = True
-                elif 5 <= package_profit <= 10 and now - timedelta(days=7) >= package.operation_datetime:
-                    sell_it = True
-                # TODO add auto_sell
+            """
+            1.- Para vender, rentabilidad últimas 3h tendría que ser < -3 y tener paquetes que cumplan:
+                + Que alguno ofrezca una rentabilidad de > 20%
+                + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
+                + Que tengan más de n meses de antiguedad. Que sea configurable.
+            """
+            price, ahead_derivative = get_last_inflexion_point_price(currency)
+            if price is None:
+                log(f'Currency {currency} has no inflexion point, ignoring it')
+                continue
+            if ahead_derivative < 0:
+                log(f'Currency {currency} is currently bajando. Vamos a buscar paquetes que se puedan vender')
+                amount = 0.0
+                remove_packages = []
+                profits = []
+                for package in packages:
+                    package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
+                    sell_it = False
+                    if package_profit > 10:
+                        log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
+                        sell_it = True
+                    elif 5 <= package_profit <= 10 and now - timedelta(days=7) >= package.operation_datetime:
+                        log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
+                        sell_it = True
+                    # TODO add auto_sell
 
-                if sell_it:
-                    profits.append(package_profit)
-                    remove_packages.append(package)
-                    amount += package.currency_amount
+                    if sell_it:
+                        profits.append(package_profit)
+                        remove_packages.append(package)
+                        amount += package.currency_amount
 
-            if len(profits) == 0:
-                profits = [0.0]
+                if len(profits) == 0:
+                    profits = [0.0]
 
-            if round(amount) > 1.0:
-                if not started_conversions:
-                    trading_source.start_conversions()
-                    started_conversions = True
+                if round(amount * current_sell_price) > 1.0:
+                    if not started_conversions:
+                        trading_source.start_conversions()
+                        started_conversions = True
 
-                target = trading_source.get_stable_cryptocurrency()
-                real_source_amount, _ = trading_source.convert(currency, amount, target)
+                    target = trading_source.get_stable_cryptocurrency()
+                    log(f'Currency {currency} convirtiendo {currency} {amount} en {target}')
 
-                mean_bought_at_price = statistics.mean([package.bought_at_price for package in remove_packages])
-                remaining = amount - real_source_amount
-                operation_datetime = pytz.utc.localize(datetime.utcnow()) if len(remove_packages) == 0 else \
-                    remove_packages[0].operation_datetime
+                    try:
+                        real_source_amount, _ = trading_source.convert(currency, amount, target)
+                    except Exception as e:
+                        capture_exception(e)
+                        log(e)
+                        continue
 
-                package = Package(
-                    currency_symbol=currency.symbol,
-                    currency_amount=remaining,
-                    bought_at_price=mean_bought_at_price,
-                    operation_datetime=operation_datetime,
-                )
-                storage.save_package(package)
-                for package in remove_packages:
-                    storage.delete_package(package)
-                add_system_log(f'SELL', f'SELL {currency.symbol} {amount} profit: {statistics.mean(profits)}%')
+                    mean_bought_at_price = statistics.mean([package.bought_at_price for package in remove_packages])
+                    remaining = amount - real_source_amount
+                    operation_datetime = pytz.utc.localize(datetime.utcnow()) if len(remove_packages) == 0 else \
+                        remove_packages[0].operation_datetime
 
-    if started_conversions:
-        trading_source.finish_conversions()
+                    package = Package(
+                        currency_symbol=currency.symbol,
+                        currency_amount=remaining,
+                        bought_at_price=mean_bought_at_price,
+                        operation_datetime=operation_datetime,
+                    )
+                    storage.save_package(package)
+                    for package in remove_packages:
+                        storage.delete_package(package)
+                    add_system_log(f'SELL', f'SELL {currency.symbol} {amount} profit: {round(statistics.mean(profits), 1)}%')
+                else:
+                    log(f'Currency {currency} La cantidad a vender {current_sell_price * amount} EUR no es suficiente. Ignorando')
+
+            else:
+                log(f'Currency {currency} is currently subiendo. Esperamos')
+    finally:
+        if started_conversions:
+            trading_source.finish_conversions()
+    log(f'--- FINISH SELL ---')
 
 
-# @periodic_task(run_every=crontab(hour='*/6', minute='0'), name="purchase_operation_periodic", ignore_result=True)
-@periodic_task(run_every=crontab(hour='17', minute='30'), name="purchase_operation_periodic", ignore_result=True)
 def purchase():
-    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
-    enable_trading = enable_trading_data.get('activated')
-    if not enable_trading:
-        return
+    log(f'--- INIT PURCHASE ---')
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
@@ -121,6 +156,7 @@ def purchase():
     source_cryptocurrency = trading_source.get_stable_cryptocurrency()
     source_amount = trading_source.get_amount_owned(source_cryptocurrency)
     if round(source_amount) <= 1:
+        log(f'Amount of stable currency is {source_amount}. Returning')
         return
 
     now = pytz.utc.localize(datetime.utcnow())
@@ -129,19 +165,21 @@ def purchase():
 
     for currency in trading_cryptocurrencies:
         if currency.symbol == source_cryptocurrency.symbol:
+            log(f'Ignoring {currency} for purchase')
             continue
 
         prices = trading_source.get_last_month_prices(currency)
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+            log(f'Ignoring {currency} no prices')
             continue
 
         packages = storage.get_cryptocurrency_packages(currency)
         current_sell_price = prices[-1].sell_price
-        price_mean = statistics.mean([p.sell_price for p in prices])
-        price_profit_from_mean = profit_difference_percentage(price_mean, current_sell_price)
-        if price_profit_from_mean >= 0:
-            continue
+
+        # new
+        price_profit = qs.profit_percentage(timedelta(hours=24), now=now)
+
         native_amount_owned = 0
         for package in packages:
             native_amount_owned += package.currency_amount * current_sell_price
@@ -149,17 +187,13 @@ def purchase():
             native_amount_owned = 1
 
         purchase_currency_data.append({
-            'price_profit_from_mean': price_profit_from_mean,
+            'price_profit': price_profit,
             'native_amount_owned': native_amount_owned,
             'currency': currency
         })
 
     # sort by precedence
-    max_native_amount_owned = max([item['native_amount_owned'] for item in purchase_currency_data])
-    native_amount_owned_factor = 20 / max_native_amount_owned
-    for item in purchase_currency_data:
-        item['score'] = item['price_profit_from_mean'] + (item['native_amount_owned'] * native_amount_owned_factor)
-    purchase_currency_data.sort(key=lambda item: item['score'])
+    purchase_currency_data.sort(key=lambda item: item['native_amount_owned'])
 
     # get trading settings
     trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
@@ -172,9 +206,6 @@ def purchase():
     # limit to elements specified
     purchase_currency_data = purchase_currency_data[0:max_purchases_each_time]
 
-    # get the absolute value as profits are all negative values
-    total_profits = abs(sum([item['price_profit_from_mean'] for item in purchase_currency_data]))
-
     parts = len(purchase_currency_data) if len(purchase_currency_data) != 0 else 1
     source_fragment_amount = source_amount / parts
     if source_fragment_amount > max_amount_per_purchase:
@@ -182,38 +213,35 @@ def purchase():
     if round(source_fragment_amount) == 0.0:
         return
 
-    # this is the sum of all equal parts
-    source_amount_total = parts * source_fragment_amount
-
     trading_source.start_conversions()
 
-    for purchase_currency_data_item in purchase_currency_data:
-        target_currency = purchase_currency_data_item['currency']
-        price_profit_from_mean = abs(purchase_currency_data_item['price_profit_from_mean'])
+    try:
+        for purchase_currency_data_item in purchase_currency_data:
+            target_currency = purchase_currency_data_item['currency']
 
-        # more loss from mean prices, more amount to purchase
-        if total_profits == 0.0:
-            weighted_amount = source_fragment_amount
-        else:
-            weighted_amount = source_amount_total * (price_profit_from_mean / total_profits)
+            prices = trading_source.get_last_month_prices(target_currency)
+            current_buy_price = prices[-1].buy_price
+            try:
+                _, converted_target_amount = trading_source.convert(source_cryptocurrency,
+                                                                    source_fragment_amount,
+                                                                    target_currency)
+            except Exception as e:
+                capture_exception(e)
+                log(str(e))
+                continue
 
-        print(f'source_amount_total: {source_amount_total}, for currency {target_currency}: {weighted_amount}')
+            package = Package(
+                currency_symbol=target_currency.symbol,
+                currency_amount=converted_target_amount,
+                bought_at_price=current_buy_price,
+                operation_datetime=pytz.utc.localize(datetime.utcnow()),
+            )
+            storage.save_package(package)
+            add_system_log(f'BUY', f'BUY {target_currency.symbol} {converted_target_amount}')
+    finally:
+        trading_source.finish_conversions()
 
-        prices = trading_source.get_last_month_prices(target_currency)
-        current_buy_price = prices[-1].buy_price
-        _, converted_target_amount = trading_source.convert(source_cryptocurrency,
-                                                            weighted_amount,
-                                                            target_currency)
-        package = Package(
-            currency_symbol=target_currency.symbol,
-            currency_amount=converted_target_amount,
-            bought_at_price=current_buy_price,
-            operation_datetime=pytz.utc.localize(datetime.utcnow()),
-        )
-        storage.save_package(package)
-        add_system_log(f'BUY', f'BUY {target_currency.symbol} {converted_target_amount}')
-
-    trading_source.finish_conversions()
+    log(f'--- FINISH PURCHASE ---')
 
 
 def get_last_inflexion_point_price(currency):
@@ -231,9 +259,6 @@ def get_last_inflexion_point_price(currency):
             different_days += 1
 
     number_of_knots = round(different_days / 1.5)
-
-    print(f'Different days: {different_days}')
-    print(f'number_of_knots: {number_of_knots}')
 
     f, _ = cubic_splines_function(x=x, y=y, number_of_knots=number_of_knots)
 
@@ -258,11 +283,6 @@ Specific commands
 
 
 def reset_trading():
-    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
-    server_set('enable_trading', {
-        'activated': False
-    })
-
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
     now = pytz.utc.localize(datetime.utcnow())
@@ -289,17 +309,8 @@ def reset_trading():
 
     trading_source.finish_conversions()
 
-    server_set('enable_trading', {
-        'activated': enable_trading_data.get('activated')
-    })
-
 
 def reset_currency(symbol: str):
-    enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
-    server_set('enable_trading', {
-        'activated': False
-    })
-
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
     now = pytz.utc.localize(datetime.utcnow())
@@ -324,10 +335,6 @@ def reset_currency(symbol: str):
     trading_source.finish_conversions()
     for package in packages:
         storage.delete_package(package)
-
-    server_set('enable_trading', {
-        'activated': enable_trading_data.get('activated')
-    })
 
 
 """

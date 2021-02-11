@@ -260,10 +260,12 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             if element.is_displayed():
                 element.click()
                 native_amount = (source_amount * current_price) + 0.1
+                trials = 0
                 while real_source_amount is None or real_source_amount > source_amount:
                     element.clear()
                     element.send_keys(two_decimals_floor(native_amount))
-                    time.sleep(2)
+                    trials += 1
+                    time.sleep(3)
                     convert_from_element = self.driver.find_element_by_css_selector('div[data-element-handle="convert-from-selector"]')
                     for paragraph_element in convert_from_element.find_elements_by_xpath('.//p'):
                         if source_cryptocurrency.symbol.lower() in paragraph_element.text.lower():
@@ -275,6 +277,9 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                             break
                     else:
                         raise Exception(f'Cannot find paragraph with real source amount')
+
+                    if trials > 9:
+                        raise Exception(f'Too much trials in prices ...')
 
                 convert_to_element = self.driver.find_element_by_css_selector(
                     'div[data-element-handle="convert-to-selector"]')

@@ -136,3 +136,4 @@ celerybeat-schedule.dir
 celerybeat-schedule.bak
 .idea/
 .environment
+*.log

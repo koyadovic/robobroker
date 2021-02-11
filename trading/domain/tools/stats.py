@@ -84,6 +84,8 @@ Now
 
 
 def profit_difference_percentage(origin, destination):
+    if origin == 0:
+        return 0
     return ((destination - origin) / origin) * 100
 
 
