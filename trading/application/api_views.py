@@ -20,3 +20,21 @@ def last_month_prices_view(request, currency=None):
         'buy_price': p.buy_price,
     } for p in prices]
     return Response(serialized_prices)
+
+
+@api_view(http_method_names=['GET'])
+def all_last_month_prices_view(request):
+    if not request.user.is_authenticated:
+        return Response(status=401)
+
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    all_prices = {}
+    for currency in trading_source.get_trading_cryptocurrencies():
+        prices = trading_source.get_last_month_prices(currency)
+        all_prices[currency.symbol] = [{
+            'symbol': p.symbol,
+            'instant': p.instant.timestamp(),
+            'sell_price': p.sell_price,
+            'buy_price': p.buy_price,
+        } for p in prices]
+    return Response(all_prices)
