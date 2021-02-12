@@ -55,11 +55,7 @@ def trade():
 
         print(f'Fetching updated prices ...')
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
-        trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
-        all_prices = {}
-        for currency in trading_cryptocurrencies:
-            print(f'Fetching {currency} prices')
-            all_prices[currency.symbol] = trading_source.get_last_month_prices(currency)
+        all_prices = trading_source.get_all_currency_prices()
         sell(all_prices=all_prices)
         if do_purchase:
             purchase(all_prices=all_prices)

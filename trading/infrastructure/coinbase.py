@@ -170,7 +170,26 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         #     ))
         # native_prices.sort(key=lambda p: p.instant)
         # return native_prices
-    
+
+    def get_all_currency_prices(self) -> dict:
+        # https://rob.idiet.fit/api/all-month-prices/?format=json
+        auth = HTTPBasicAuth(os.environ.get('REMOTE_USER'), os.environ.get('REMOTE_PASS'))
+        try:
+            response = requests.get(f'https://rob.idiet.fit/api/all-month-prices/', auth=auth)
+        except Exception as e:
+            print(e)
+            return {}
+
+        data = response.json()
+        for k, v in data.items():
+            data[k] = [CryptocurrencyPrice(
+                symbol=p['symbol'],
+                instant=pytz.utc.localize(datetime.utcfromtimestamp(p['instant'])),
+                sell_price=p['sell_price'],
+                buy_price=p['buy_price'],
+            ) for p in v]
+        return data
+
     def _get_last_month_prices_remote(self, cryptocurrency: Cryptocurrency):
         auth = HTTPBasicAuth(os.environ.get('REMOTE_USER'), os.environ.get('REMOTE_PASS'))
         try:
@@ -261,7 +280,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         for element in self.driver.find_elements_by_css_selector('input[aria-label="Importe"]'):
             if element.is_displayed():
                 element.click()
-                native_amount = (source_amount * current_price) + 2.0
+                native_amount = (source_amount * current_price) + 1.0
 
                 native_amount_y1 = None
                 native_amount_y2 = None
@@ -285,7 +304,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                             if trials == 1:
                                 native_amount_y2 = native_amount
                                 real_source_amount_x2 = real_source_amount
-                                native_amount -= 1.0
+                                native_amount -= 0.5
                             elif trials == 2:
                                 native_amount_y1 = native_amount
                                 real_source_amount_x1 = real_source_amount
@@ -306,6 +325,16 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
                     if trials > 39:
                         raise Exception(f'Too much trials in prices ...')
+
+                # compute similarity
+                source_prices = [source_amount, real_source_amount]
+                min_source_price = min(source_prices)
+                max_source_price = max(source_prices)
+                similarity = min_source_price / max_source_price
+                if similarity < 0.85:
+                    raise Exception(f'Requested amount {source_cryptocurrency.symbol} {source_amount} and '
+                                    f'real source amount for conversion '
+                                    f'{source_cryptocurrency.symbol} {real_source_amount} are not similar')
 
                 convert_to_element = self.driver.find_element_by_css_selector(
                     'div[data-element-handle="convert-to-selector"]')

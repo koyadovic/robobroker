@@ -1,7 +1,14 @@
 # robobroker
 robobroker
 
-# Celery
+# Running Celery + server local
 ```
-celery worker -A robobroker.celery -B -l info -Q robobroker -E
+# local server
+python manage.py runserver 7000
+
+# celery beat
+celery beat -A robobroker.celery
+
+# celery worker
+celery worker -A robobroker.celery
 ```
