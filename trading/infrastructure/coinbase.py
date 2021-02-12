@@ -124,7 +124,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
     def get_current_sell_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         try:
-            response = self._client.get_buy_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
+            response = self._client.get_sell_price(currency_pair=f'{cryptocurrency.symbol}-{self.native_currency}')
             return float(response.amount)
         except NotFoundError:
             return None
