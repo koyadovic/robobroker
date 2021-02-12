@@ -259,7 +259,14 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         for element in self.driver.find_elements_by_css_selector('input[aria-label="Importe"]'):
             if element.is_displayed():
                 element.click()
-                native_amount = (source_amount * current_price) + 0.1
+                native_amount = (source_amount * current_price) + 2.0
+
+                native_amount_y1 = None
+                native_amount_y2 = None
+
+                real_source_amount_x1 = None
+                real_source_amount_x2 = None
+
                 trials = 0
                 while real_source_amount is None or real_source_amount > source_amount:
                     element.clear()
@@ -272,8 +279,25 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                             real_value = str(paragraph_element.text.lower().split(source_cryptocurrency.symbol.lower())[0]).strip()
                             real_value = real_value.replace(',', '.')
                             real_source_amount = float(real_value)
-                            if real_source_amount > source_amount:
-                                native_amount -= 0.3
+
+                            if trials == 1:
+                                native_amount_y2 = native_amount
+                                real_source_amount_x2 = real_source_amount
+                                native_amount -= 1.0
+                            elif trials == 2:
+                                native_amount_y1 = native_amount
+                                real_source_amount_x1 = real_source_amount
+
+                                diff_y = native_amount_y2 - native_amount_y1
+                                diff_x = real_source_amount_x2 - real_source_amount_x1
+                                m = diff_y / diff_x
+                                b = native_amount_y1 - (m * real_source_amount_x1)
+                                native_amount = (source_amount * m) + b
+                                print(f'Predicted native amount --> {native_amount}')
+                                break
+                            else:
+                                if real_source_amount > source_amount:
+                                    native_amount -= 0.01
                             break
                     else:
                         raise Exception(f'Cannot find paragraph with real source amount')
