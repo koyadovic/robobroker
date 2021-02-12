@@ -81,7 +81,9 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         trading_cryptocurrencies_data = server_get('trading_cryptocurrencies', default_data={}).data
         last_ts = trading_cryptocurrencies_data.get('ts', None)
         cryptocurrencies = trading_cryptocurrencies_data.get('cryptocurrencies', [])
-        if not (last_ts is not None and last_ts + (3600*24) > now_ts):
+
+        if last_ts is None or now_ts - (3600*24) > last_ts:
+            print(f'REFRESING ACCOUNTS {now_ts} - {last_ts}')
             accounts = self._client.get_accounts(limit=100).data
             cryptocurrencies = []
             for account in accounts:
