@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from typing import List
+
 import numpy as np
 
 import pytz
@@ -37,7 +39,14 @@ _FILE_LOCK = '/tmp/.robobroker_trading'
 def trade():
     with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=True, raise_exception_if_locked=False):
         now = pytz.utc.localize(datetime.utcnow())
-        do_purchase = now.hour % 2 == 0 and now.minute == 0
+        trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
+            'max_purchases_each_time': 10,
+            'max_amount_per_purchase': 10,
+            'execute_each_hours': 2
+        }).data
+
+        execute_each_hours = int(trading_purchase_settings_data.get('execute_each_hours', 2))
+        do_purchase = now.hour % execute_each_hours == 0 and now.minute == 0
 
         enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
         enable_trading = enable_trading_data.get('activated')
@@ -90,11 +99,15 @@ def sell(all_prices=None):
                 + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
                 + Que tengan más de n meses de antiguedad. Que sea configurable.
             """
-            price, ahead_derivative = get_last_inflexion_point_price(currency)
-            if price is None:
-                log(f'Currency {currency} has no inflexion point, ignoring it')
-                continue
-            if ahead_derivative < 0:
+            # price, ahead_derivative = get_last_inflexion_point_price(currency)
+
+            profit_24h = qs.profit_percentage(timedelta(days=1))
+            profit_1h = qs.profit_percentage(timedelta(hours=1))
+
+            # if price is None:
+            #     log(f'Currency {currency} has no inflexion point, ignoring it')
+            #     continue
+            if -2 > profit_1h:  # ahead_derivative < 0
                 log(f'Currency {currency} is currently bajando. Vamos a buscar paquetes que se puedan vender')
                 amount = 0.0
                 remove_packages = []
@@ -215,6 +228,7 @@ def purchase(all_prices=None):
     trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
         'max_purchases_each_time': 10,
         'max_amount_per_purchase': 10,
+        'execute_each_hours': 2
     }).data
     max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
     max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
@@ -258,6 +272,57 @@ def purchase(all_prices=None):
         trading_source.finish_conversions()
 
     log(f'--- FINISH PURCHASE ---')
+
+
+def sell_packages(package_ids: List[int]):
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
+    packages = []
+    different_currencies = set()
+    amount = 0.0
+    for package_id in package_ids:
+        package = storage.get_package_by_id(package_id)
+        if package is not None:
+            packages.append(package)
+            different_currencies.add(package.currency_symbol)
+            amount += package.currency_amount
+    if len(different_currencies) > 1:
+        print(f'Cannot mix packages from different currencies')
+        return
+    elif len(different_currencies) == 0:
+        print(f'No valid packages selected. Doing nothing.')
+        return
+
+    currency = trading_source.get_trading_cryptocurrency(packages[0].currency_symbol)
+
+    trading_source.start_conversions()
+    target = trading_source.get_stable_cryptocurrency()
+    log(f'Currency {currency} convirtiendo {currency} {amount} en {target}')
+
+    try:
+        real_source_amount, _ = trading_source.convert(currency, amount, target)
+    except Exception as e:
+        capture_exception(e)
+        log(e)
+        return
+    finally:
+        trading_source.finish_conversions()
+
+    mean_bought_at_price = statistics.mean([package.bought_at_price for package in packages])
+    remaining = amount - real_source_amount
+    operation_datetime = pytz.utc.localize(datetime.utcnow()) if len(packages) == 0 else \
+        packages[0].operation_datetime
+
+    package = Package(
+        currency_symbol=currency.symbol,
+        currency_amount=remaining,
+        bought_at_price=mean_bought_at_price,
+        operation_datetime=operation_datetime,
+    )
+    storage.save_package(package)
+    for package in packages:
+        storage.delete_package(package)
+    add_system_log(f'SELL', f'SELL {currency.symbol} {amount}')
 
 
 def get_last_inflexion_point_price(currency):
@@ -383,7 +448,7 @@ def list_package_profits(symbol=None):
             total_spent += spent
             total_current_value += current_value
             total_profits.append(profit)
-            print(f'    > Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Bought at price {package.bought_at_price} - Profit: {round(profit, 2)}%')
+            print(f'    > [{package.id}] Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Bought at price {package.bought_at_price} - Profit: {round(profit, 2)}%')
         if len(total_profits) == 0:
             total_profits = [0.0]
         print('    ' + ('-' * 75))
@@ -419,7 +484,7 @@ def show_global_profit_stats():
     plt.show()
 
 
-@periodic_task(run_every=crontab(hour='0', minute='0'), name="compute_global_profit", ignore_result=True)
+@periodic_task(run_every=crontab(hour='0', minute='0'), name="compute_global_profit", ignore_result=False)
 def compute_global_profit():
     global_profits_data = server_get('global_profits', default_data={'records': []}).data
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)

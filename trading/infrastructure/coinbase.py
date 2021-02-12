@@ -273,12 +273,12 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                             real_value = real_value.replace(',', '.')
                             real_source_amount = float(real_value)
                             if real_source_amount > source_amount:
-                                native_amount -= 0.05
+                                native_amount -= 0.3
                             break
                     else:
                         raise Exception(f'Cannot find paragraph with real source amount')
 
-                    if trials > 9:
+                    if trials > 39:
                         raise Exception(f'Too much trials in prices ...')
 
                 convert_to_element = self.driver.find_element_by_css_selector(
