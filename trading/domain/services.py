@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta
 from typing import List
 
@@ -56,19 +57,23 @@ def trade():
         print(f'Fetching updated prices ...')
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
         all_prices = trading_source.get_all_currency_prices()
-        sell(all_prices=all_prices)
+        currencies_sold = sell(all_prices=all_prices)
         if do_purchase:
-            purchase(all_prices=all_prices)
+            purchase(all_prices=all_prices, ignore_for_purchase=currencies_sold)
 
 
 def sell(all_prices=None):
     now = pytz.utc.localize(datetime.utcnow())
     log(f'--- INIT SELL ---')
+    log(f'waiting 2 minutes')
+    time.sleep(120)
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     started_conversions = False
+
+    currencies_sold = []
 
     try:
         for currency in trading_cryptocurrencies:
@@ -156,6 +161,7 @@ def sell(all_prices=None):
                     storage.save_package(package)
                     for package in remove_packages:
                         storage.delete_package(package)
+                    currencies_sold.append(currency)
                     add_system_log(f'SELL', f'SELL {currency.symbol} {amount} profit: {round(statistics.mean(profits), 1)}%')
                 else:
                     log(f'Currency {currency} La cantidad a vender {current_sell_price * amount} EUR no es suficiente. Ignorando')
@@ -166,10 +172,14 @@ def sell(all_prices=None):
         if started_conversions:
             trading_source.finish_conversions()
     log(f'--- FINISH SELL ---')
+    return currencies_sold
 
 
-def purchase(all_prices=None):
+def purchase(all_prices=None, ignore_for_purchase=None):
     log(f'--- INIT PURCHASE ---')
+
+    ignore_for_purchase = ignore_for_purchase or []
+    ignore_symbols = [c.symbol for c in ignore_for_purchase]
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
@@ -187,6 +197,10 @@ def purchase(all_prices=None):
     for currency in trading_cryptocurrencies:
         if currency.symbol == source_cryptocurrency.symbol:
             log(f'Ignoring {currency} for purchase')
+            continue
+
+        if currency.symbol in ignore_symbols:
+            log(f'Ignoring {currency} for purchase. Sold recently.')
             continue
 
         if all_prices is None:
@@ -446,11 +460,11 @@ def list_package_profits(symbol=None):
             total_current_value += current_value
             total_profits.append(profit)
             total_currency_amount += package.currency_amount
-            print(f'    > [{package.id}] Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Bought at price {package.bought_at_price} - Profit: {round(profit, 2)}%')
+            print(f'    > [{package.id}] Spent EUR {round(spent, 2)} - Value EUR {round(current_value, 2)} - Bought at {package.bought_at_price} - Profit: {round(profit, 2)}%')
         if len(total_profits) == 0:
             total_profits = [0.0]
         print('    ' + ('-' * 75))
-        print(f'    > Total Spent EUR {round(total_spent, 2)} - Total current value EUR {round(total_current_value, 2)} - Profit: {round(statistics.mean(total_profits), 2)} - Total {currency.symbol} {total_currency_amount}')
+        print(f'    > Total spent EUR {round(total_spent, 2)} - Total value EUR {round(total_current_value, 2)} - Profit: {round(statistics.mean(total_profits), 2)} - Total {currency.symbol} {total_currency_amount}')
 
 
 def show_global_profit_stats():
