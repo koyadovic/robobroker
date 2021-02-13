@@ -111,10 +111,10 @@ def sell(all_prices=None):
                 for package in packages:
                     package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
                     sell_it = False
-                    if package_profit > 10:
+                    if package_profit > 9:
                         log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
                         sell_it = True
-                    elif 3 <= package_profit <= 10 and now - timedelta(days=2) >= package.operation_datetime:
+                    elif 2 <= package_profit <= 9 and now - timedelta(days=3) >= package.operation_datetime:
                         log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
                         sell_it = True
                     # TODO add auto_sell
@@ -435,6 +435,7 @@ def list_package_profits(symbol=None):
         current_price = trading_source.get_current_sell_price(currency)
         total_spent = 0.0
         total_current_value = 0.0
+        total_currency_amount = 0.0
         total_profits = []
         print(f'\nFor {currency} (current price: {current_price}):')
         for package in packages:
@@ -444,11 +445,12 @@ def list_package_profits(symbol=None):
             total_spent += spent
             total_current_value += current_value
             total_profits.append(profit)
+            total_currency_amount += package.currency_amount
             print(f'    > [{package.id}] Spent EUR {round(spent, 2)} - Current value EUR {round(current_value, 2)} - Bought at price {package.bought_at_price} - Profit: {round(profit, 2)}%')
         if len(total_profits) == 0:
             total_profits = [0.0]
         print('    ' + ('-' * 75))
-        print(f'    > Total Spent EUR {round(total_spent, 2)} - Total current value EUR {round(total_current_value, 2)} - Profit: {round(statistics.mean(total_profits), 2)}')
+        print(f'    > Total Spent EUR {round(total_spent, 2)} - Total current value EUR {round(total_current_value, 2)} - Profit: {round(statistics.mean(total_profits), 2)} - Total {currency.symbol} {total_currency_amount}')
 
 
 def show_global_profit_stats():
