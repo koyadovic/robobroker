@@ -103,7 +103,7 @@ def sell(all_prices=None):
             # if price is None:
             #     log(f'Currency {currency} has no inflexion point, ignoring it')
             #     continue
-            if -2 > profit_1h:  # ahead_derivative < 0
+            if -1 > profit_1h or -1 > profit_24h:  # ahead_derivative < 0
                 log(f'Currency {currency} is currently bajando. Vamos a buscar paquetes que se puedan vender')
                 amount = 0.0
                 remove_packages = []
@@ -114,7 +114,7 @@ def sell(all_prices=None):
                     if package_profit > 10:
                         log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
                         sell_it = True
-                    elif 5 <= package_profit <= 10 and now - timedelta(days=7) >= package.operation_datetime:
+                    elif 3 <= package_profit <= 10 and now - timedelta(days=2) >= package.operation_datetime:
                         log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
                         sell_it = True
                     # TODO add auto_sell
