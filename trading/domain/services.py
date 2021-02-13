@@ -56,6 +56,8 @@ def trade():
 
         print(f'Fetching updated prices ...')
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+        log(f'waiting 2 minutes to fetch prices')
+        time.sleep(120)
         all_prices = trading_source.get_all_currency_prices()
         currencies_sold = sell(all_prices=all_prices)
         if do_purchase:
@@ -65,8 +67,6 @@ def trade():
 def sell(all_prices=None):
     now = pytz.utc.localize(datetime.utcnow())
     log(f'--- INIT SELL ---')
-    log(f'waiting 2 minutes')
-    time.sleep(120)
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
