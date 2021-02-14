@@ -54,10 +54,10 @@ def trade():
         if not enable_trading:
             return
 
-        print(f'Fetching updated prices ...')
+        log(f'Waiting 2 minutes to fetch prices ...')
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
-        log(f'waiting 2 minutes to fetch prices')
         time.sleep(120)
+        log(f'Fetching updated prices ...')
         all_prices = trading_source.get_all_currency_prices()
         currencies_sold = sell(all_prices=all_prices)
         if do_purchase:
@@ -122,6 +122,7 @@ def sell(all_prices=None):
                     weighted_profits += package_profit * package.currency_amount * current_sell_price
                     total_amount_for_weighted_profit += package.currency_amount * current_sell_price
                 weighted_profit = weighted_profits / total_amount_for_weighted_profit
+                log(f'weighted_profit for {currency} --> {weighted_profit}%')
                 if weighted_profit > 9:
                     for package in packages:
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
