@@ -113,21 +113,39 @@ def sell(all_prices=None):
                 amount = 0.0
                 remove_packages = []
                 profits = []
+
+                # weighted average for profits
+                weighted_profits = 0.0
+                total_amount_for_weighted_profit = 0.0
                 for package in packages:
                     package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
-                    sell_it = False
-                    if package_profit > 9:
-                        log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
-                        sell_it = True
-                    elif 2 <= package_profit <= 9 and now - timedelta(days=3) >= package.operation_datetime:
-                        log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
-                        sell_it = True
-                    # TODO add auto_sell
-
-                    if sell_it:
+                    weighted_profits += package_profit * package.currency_amount * current_sell_price
+                    total_amount_for_weighted_profit += package.currency_amount * current_sell_price
+                weighted_profit = weighted_profits / total_amount_for_weighted_profit
+                if weighted_profit > 9:
+                    for package in packages:
+                        package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
                         profits.append(package_profit)
                         remove_packages.append(package)
                         amount += package.currency_amount
+                else:
+                    # traditional profit code
+                    for package in packages:
+                        package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
+
+                        sell_it = False
+                        if package_profit > 9:
+                            log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
+                            sell_it = True
+                        elif 2 <= package_profit <= 9 and now - timedelta(days=3) >= package.operation_datetime:
+                            log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
+                            sell_it = True
+                        # TODO add auto_sell
+
+                        if sell_it:
+                            profits.append(package_profit)
+                            remove_packages.append(package)
+                            amount += package.currency_amount
 
                 if len(profits) == 0:
                     profits = [0.0]
