@@ -39,29 +39,15 @@ _FILE_LOCK = '/tmp/.robobroker_trading'
 @periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=False)
 def trade():
     with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=True, raise_exception_if_locked=False):
-        now = pytz.utc.localize(datetime.utcnow())
-        trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
-            'max_purchases_each_time': 10,
-            'max_amount_per_purchase': 10,
-            'execute_each_hours': 2
-        }).data
-
-        execute_each_hours = int(trading_purchase_settings_data.get('execute_each_hours', 2))
-        do_purchase = now.hour % execute_each_hours == 0 and now.minute == 0
-
         enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
         enable_trading = enable_trading_data.get('activated')
         if not enable_trading:
             return
-
-        print(f'Fetching updated prices ...')
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
-        log(f'waiting 2 minutes to fetch prices')
         time.sleep(120)
         all_prices = trading_source.get_all_currency_prices()
         currencies_sold = sell(all_prices=all_prices)
-        if do_purchase:
-            purchase(all_prices=all_prices, ignore_for_purchase=currencies_sold)
+        purchase(all_prices=all_prices, ignore_for_purchase=currencies_sold)
 
 
 def sell(all_prices=None):
@@ -78,10 +64,6 @@ def sell(all_prices=None):
     try:
         for currency in trading_cryptocurrencies:
             packages = storage.get_cryptocurrency_packages(currency)
-            if len(packages) == 0:
-                log(f'Currency {currency} has no packages, ignoring it')
-                continue
-
             if all_prices is None:
                 prices = trading_source.get_last_month_prices(currency)
             else:
@@ -100,37 +82,14 @@ def sell(all_prices=None):
                 + Que alguno tenga 2 semanas o más con rentabilidad entre 5% y 20%
                 + Que tengan más de n meses de antiguedad. Que sea configurable.
             """
-            # price, ahead_derivative = get_last_inflexion_point_price(currency)
-
-            profit_24h = qs.profit_percentage(timedelta(days=1))
             profit_1h = qs.profit_percentage(timedelta(hours=1))
 
-            # if price is None:
-            #     log(f'Currency {currency} has no inflexion point, ignoring it')
-            #     continue
-            if -1 > profit_1h or -1 > profit_24h:  # ahead_derivative < 0
-                log(f'Currency {currency} is currently bajando. Vamos a buscar paquetes que se puedan vender')
-                amount = 0.0
+            if profit_1h < 0.0:
+                log(f'Currency {currency} is currently bajando. Vendemos todo')
+                amount = trading_source.get_amount_owned(currency)
                 remove_packages = []
-                profits = []
                 for package in packages:
-                    package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
-                    sell_it = False
-                    if package_profit > 9:
-                        log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
-                        sell_it = True
-                    elif 2 <= package_profit <= 9 and now - timedelta(days=3) >= package.operation_datetime:
-                        log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
-                        sell_it = True
-                    # TODO add auto_sell
-
-                    if sell_it:
-                        profits.append(package_profit)
-                        remove_packages.append(package)
-                        amount += package.currency_amount
-
-                if len(profits) == 0:
-                    profits = [0.0]
+                    remove_packages.append(package)
 
                 if round(amount * current_sell_price) > 1.0:
                     if not started_conversions:
@@ -162,7 +121,7 @@ def sell(all_prices=None):
                     for package in remove_packages:
                         storage.delete_package(package)
                     currencies_sold.append(currency)
-                    add_system_log(f'SELL', f'SELL {currency.symbol} {amount} profit: {round(statistics.mean(profits), 1)}%')
+                    add_system_log(f'SELL', f'SELL {currency.symbol} {amount}')
                 else:
                     log(f'Currency {currency} La cantidad a vender {current_sell_price * amount} EUR no es suficiente. Ignorando')
 
@@ -195,6 +154,7 @@ def purchase(all_prices=None, ignore_for_purchase=None):
     purchase_currency_data = []
 
     for currency in trading_cryptocurrencies:
+
         if currency.symbol == source_cryptocurrency.symbol:
             log(f'Ignoring {currency} for purchase')
             continue
@@ -203,55 +163,38 @@ def purchase(all_prices=None, ignore_for_purchase=None):
             log(f'Ignoring {currency} for purchase. Sold recently.')
             continue
 
+
         if all_prices is None:
             prices = trading_source.get_last_month_prices(currency)
         else:
             prices = all_prices[currency.symbol]
 
-        qs = PricesQueryset(prices)
-        if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
-            log(f'Ignoring {currency} no prices')
+        price = prices[-1].sell_price
+        amount = trading_source.get_amount_owned(currency)
+
+        if price * amount > 100:
             continue
 
-        packages = storage.get_cryptocurrency_packages(currency)
-        current_sell_price = prices[-1].sell_price
+        qs = PricesQueryset(prices)
+        if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+            log(f'Currency {currency} has no prices, ignoring it')
+            continue
 
-        # new
-        price_profit = qs.profit_percentage(timedelta(hours=24), now=now)
+        profit_1h = qs.profit_percentage(timedelta(hours=1))
+        profit_6h = qs.profit_percentage(timedelta(hours=6))
 
-        native_amount_owned = 0
-        for package in packages:
-            native_amount_owned += package.currency_amount * current_sell_price
-        if native_amount_owned < 1:
-            native_amount_owned = 1
-
-        purchase_currency_data.append({
-            'price_profit': price_profit,
-            'native_amount_owned': native_amount_owned,
-            'currency': currency
-        })
-
-    # sort by precedence
-    purchase_currency_data.sort(key=lambda item: item['native_amount_owned'])
-
-    # get trading settings
-    trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
-        'max_purchases_each_time': 10,
-        'max_amount_per_purchase': 10,
-        'execute_each_hours': 2
-    }).data
-    max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
-    max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
-
-    # limit to elements specified
-    purchase_currency_data = purchase_currency_data[0:max_purchases_each_time]
+        if profit_1h > 1.0 and profit_6h > 1.0:
+            purchase_currency_data.append({
+                'currency': currency
+            })
 
     parts = len(purchase_currency_data) if len(purchase_currency_data) != 0 else 1
     source_fragment_amount = source_amount / parts
-    if source_fragment_amount > max_amount_per_purchase:
-        source_fragment_amount = max_amount_per_purchase
     if round(source_fragment_amount) == 0.0:
         return
+
+    if source_fragment_amount > 200:
+        source_fragment_amount = 200
 
     trading_source.start_conversions()
 
