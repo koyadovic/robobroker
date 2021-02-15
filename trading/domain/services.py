@@ -79,7 +79,6 @@ def sell(all_prices=None):
         for currency in trading_cryptocurrencies:
             packages = storage.get_cryptocurrency_packages(currency)
             if len(packages) == 0:
-                log(f'Currency {currency} has no packages, ignoring it')
                 continue
 
             if all_prices is None:
@@ -89,7 +88,6 @@ def sell(all_prices=None):
 
             qs = PricesQueryset(prices)
             if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
-                log(f'Currency {currency} has no prices, ignoring it')
                 continue
 
             current_sell_price = prices[-1].sell_price
@@ -108,8 +106,8 @@ def sell(all_prices=None):
             # if price is None:
             #     log(f'Currency {currency} has no inflexion point, ignoring it')
             #     continue
-            if -1 > profit_1h or -1 > profit_24h:  # ahead_derivative < 0
-                log(f'Currency {currency} is currently bajando. Vamos a buscar paquetes que se puedan vender')
+            if profit_1h < -1 or profit_24h < -1:  # ahead_derivative < 0
+                log(f'Currency {currency} is currently going down. Vamos a buscar paquetes que se puedan vender')
                 amount = 0.0
                 remove_packages = []
                 profits = []
@@ -121,9 +119,10 @@ def sell(all_prices=None):
                     package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
                     weighted_profits += package_profit * package.currency_amount * current_sell_price
                     total_amount_for_weighted_profit += package.currency_amount * current_sell_price
-                weighted_profit = weighted_profits / total_amount_for_weighted_profit
-                log(f'weighted_profit for {currency} --> {weighted_profit}%')
+
+                weighted_profit = weighted_profits / total_amount_for_weighted_profit if total_amount_for_weighted_profit != 0.0 else 0.0
                 if weighted_profit > 9:
+                    log(f'Weighted profit for {currency} --> {round(weighted_profit, 2)}%. Vendiendo todos los paquetes')
                     for package in packages:
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
                         profits.append(package_profit)
@@ -186,7 +185,7 @@ def sell(all_prices=None):
                     log(f'Currency {currency} La cantidad a vender {current_sell_price * amount} EUR no es suficiente. Ignorando')
 
             else:
-                log(f'Currency {currency} is currently subiendo. Esperamos')
+                log(f'Currency {currency} is currently going up. Esperamos')
     finally:
         if started_conversions:
             trading_source.finish_conversions()
@@ -203,10 +202,19 @@ def purchase(all_prices=None, ignore_for_purchase=None):
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
 
+    # get trading settings
+    trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
+        'max_purchases_each_time': 10,
+        'max_amount_per_purchase': 10,
+        'execute_each_hours': 2,
+        'amount_reserved': 0,
+    }).data
+    amount_reserved = trading_purchase_settings_data.get('amount_reserved', 0)
+
     source_cryptocurrency = trading_source.get_stable_cryptocurrency()
     source_amount = trading_source.get_amount_owned(source_cryptocurrency)
-    if round(source_amount) <= 1:
-        log(f'Amount of stable currency is {source_amount}. Returning')
+    if round(source_amount) - amount_reserved <= 1:
+        log(f'Amount of stable currency is {source_amount}. Reserved {amount_reserved}. Returning')
         return
 
     now = pytz.utc.localize(datetime.utcnow())
@@ -253,12 +261,6 @@ def purchase(all_prices=None, ignore_for_purchase=None):
     # sort by precedence
     purchase_currency_data.sort(key=lambda item: item['native_amount_owned'])
 
-    # get trading settings
-    trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
-        'max_purchases_each_time': 10,
-        'max_amount_per_purchase': 10,
-        'execute_each_hours': 2
-    }).data
     max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
     max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
 
@@ -266,7 +268,7 @@ def purchase(all_prices=None, ignore_for_purchase=None):
     purchase_currency_data = purchase_currency_data[0:max_purchases_each_time]
 
     parts = len(purchase_currency_data) if len(purchase_currency_data) != 0 else 1
-    source_fragment_amount = source_amount / parts
+    source_fragment_amount = (source_amount - amount_reserved) / parts
     if source_fragment_amount > max_amount_per_purchase:
         source_fragment_amount = max_amount_per_purchase
     if round(source_fragment_amount) == 0.0:
