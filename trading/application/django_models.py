@@ -27,3 +27,21 @@ class DPackage(models.Model):
     class Meta:
         verbose_name = 'Package'
         verbose_name_plural = 'Packages'
+
+
+class DCryptocurrencyPrice(models.Model):
+    symbol = models.CharField(max_length=10)
+    instant = models.DateTimeField(blank=True, null=True)
+    sell_price = models.FloatField(blank=True, null=True)
+    buy_price = models.FloatField(blank=True, null=True)
+
+    def __str__(self):
+        return f'{self.symbol} (sell_price: {self.sell_price}, buy_price: {self.buy_price})'
+
+    def __repr__(self):
+        return self.__repr__()
+
+    class Meta:
+        verbose_name = 'CryptocurrencyPrice'
+        verbose_name_plural = 'CryptocurrencyPrices'
+        ordering = ('-instant',)

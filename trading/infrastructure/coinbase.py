@@ -11,6 +11,7 @@ from requests.auth import HTTPBasicAuth
 
 from shared.domain.configurations import server_get, server_set
 from shared.domain.periodic_tasks import schedule
+from trading.application.django_models import DCryptocurrencyPrice
 from trading.domain.entities import Cryptocurrency, CryptocurrencyPrice
 from trading.domain.interfaces import ICryptoCurrencySource
 from coinbase.wallet.client import Client
@@ -300,9 +301,6 @@ def fetch_prices():
         return
 
     trading_source: ICryptoCurrencySource = CoinbaseCryptoCurrencySource()
-    current_prices_data = server_get(_get_current_prices_key(), default_data={}).data
-    current_prices = current_prices_data.get('current_prices', [])
-
     for cryptocurrency in trading_source.get_trading_cryptocurrencies():
         try:
             sell_price = trading_source.get_current_sell_price(cryptocurrency)
@@ -312,13 +310,10 @@ def fetch_prices():
         if sell_price is None or buy_price is None:
             continue
         now = pytz.utc.localize(datetime.utcnow())
-        price = {
-            'symbol': cryptocurrency.symbol,
-            'instant': now.timestamp(),
-            'sell_price': sell_price,
-            'buy_price': buy_price,
-        }
-        current_prices.append(price)
-        server_set(_get_current_prices_key(), {
-            'current_prices': current_prices
-        })
+
+        DCryptocurrencyPrice.objects.create(
+            symbol=cryptocurrency.symbol,
+            instant=now,
+            sell_price=sell_price,
+            buy_price=buy_price,
+        )
