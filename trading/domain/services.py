@@ -58,10 +58,9 @@ def trade():
         trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
         time.sleep(120)
         log(f'Fetching updated prices ...')
-        all_prices = trading_source.get_all_currency_prices()
-        currencies_sold = sell(all_prices=all_prices)
+        currencies_sold = sell()
         if do_purchase:
-            purchase(all_prices=all_prices, ignore_for_purchase=currencies_sold)
+            purchase(ignore_for_purchase=currencies_sold)
 
 
 def sell(all_prices=None):
