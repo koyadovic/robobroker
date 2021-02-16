@@ -44,4 +44,4 @@ class DCryptocurrencyPrice(models.Model):
     class Meta:
         verbose_name = 'CryptocurrencyPrice'
         verbose_name_plural = 'CryptocurrencyPrices'
-        ordering = ('-instant',)
+        ordering = ('instant',)
