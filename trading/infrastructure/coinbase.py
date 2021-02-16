@@ -183,10 +183,10 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         data = response.json()
         for k, v in data.items():
             data[k] = [CryptocurrencyPrice(
-                symbol=p['symbol'],
-                instant=pytz.utc.localize(datetime.utcfromtimestamp(p['instant'])),
-                sell_price=p['sell_price'],
-                buy_price=p['buy_price'],
+                symbol=k,
+                instant=pytz.utc.localize(datetime.utcfromtimestamp(p['i'])),
+                sell_price=p['s'],
+                buy_price=p['b'],
             ) for p in v]
         return data
 
@@ -200,10 +200,10 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         data = response.json()
         return [CryptocurrencyPrice(
-            symbol=p['symbol'],
-            instant=pytz.utc.localize(datetime.utcfromtimestamp(p['instant'])),
-            sell_price=p['sell_price'],
-            buy_price=p['buy_price'],
+            symbol=cryptocurrency.symbol,
+            instant=pytz.utc.localize(datetime.utcfromtimestamp(p['i'])),
+            sell_price=p['s'],
+            buy_price=p['b'],
         ) for p in data]
 
     def start_conversions(self):
