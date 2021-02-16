@@ -11,6 +11,7 @@ def _do_migrate(apps, schema_editor):
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     for currency in trading_source.get_trading_cryptocurrencies():
         prices = trading_source.get_last_month_prices(currency)
+        print(f'Migrating {currency}')
         for p in prices:
             DCryptocurrencyPrice.objects.create(
                 symbol=p.symbol,
