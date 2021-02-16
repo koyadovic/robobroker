@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from json import JSONDecodeError
 
 import pytz
 from matplotlib.dates import DateFormatter
@@ -438,3 +439,34 @@ def _check_buy(candidate_currencies: List[Cryptocurrency]):
         )
         storage.save_package(package)
         add_system_log(f'BUY', f'BUY {target_currency.symbol} {source_fragment_amount}')
+
+
+@schedule(minute='*', unique_name='trade', priority=6)
+def fetch_prices():
+    now = pytz.utc.localize(datetime.utcnow())
+    if now.minute % 5 != 0:
+        return
+
+    enable_fetch_prices_data = server_get('enable_fetch_prices', default_data={'activated': False}).data
+    enable_fetch_prices = enable_fetch_prices_data.get('activated')
+    if not enable_fetch_prices:
+        return
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    from trading.application.django_models import DCryptocurrencyPrice
+
+    for cryptocurrency in trading_source.get_trading_cryptocurrencies():
+        try:
+            sell_price = trading_source.get_current_sell_price(cryptocurrency)
+            buy_price = trading_source.get_current_buy_price(cryptocurrency)
+        except JSONDecodeError:
+            continue
+        if sell_price is None or buy_price is None:
+            continue
+        now = pytz.utc.localize(datetime.utcnow())
+
+        DCryptocurrencyPrice.objects.create(
+            symbol=cryptocurrency.symbol,
+            instant=now,
+            sell_price=sell_price,
+            buy_price=buy_price,
+        )
