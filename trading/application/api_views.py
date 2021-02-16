@@ -15,10 +15,9 @@ def last_month_prices_view(request, currency=None):
         return Response(status=401)
     prices = DCryptocurrencyPrice.objects.filter(symbol=currency, instant__gte=timezone.now() - timedelta(days=30)).order_by('instant').all()
     serialized_prices = [{
-        'symbol': p.symbol,
-        'instant': p.instant.timestamp(),
-        'sell_price': p.sell_price,
-        'buy_price': p.buy_price,
+        'i': p.instant.timestamp(),
+        's': p.sell_price,
+        'b': p.buy_price,
     } for p in prices]
     return Response(serialized_prices)
 
@@ -33,9 +32,8 @@ def all_last_month_prices_view(request):
     for currency in trading_source.get_trading_cryptocurrencies():
         prices = DCryptocurrencyPrice.objects.filter(symbol=currency.symbol, instant__gte=timezone.now() - timedelta(days=30)).order_by('instant').all()
         all_prices[currency.symbol] = [{
-            'symbol': p.symbol,
-            'instant': p.instant.timestamp(),
-            'sell_price': p.sell_price,
-            'buy_price': p.buy_price,
+            'i': p.instant.timestamp(),
+            's': p.sell_price,
+            'b': p.buy_price,
         } for p in prices]
     return Response(all_prices)
