@@ -134,10 +134,10 @@ def sell(all_prices=None):
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
 
                         sell_it = False
-                        if package_profit > 15:
+                        if package_profit > 12:
                             log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
                             sell_it = True
-                        elif 3 <= package_profit <= 15 and now - timedelta(days=3) >= package.operation_datetime:
+                        elif 3 <= package_profit <= 12 and now - timedelta(days=3) >= package.operation_datetime:
                             log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
                             sell_it = True
                         # TODO add auto_sell
