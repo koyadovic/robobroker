@@ -13,7 +13,9 @@ from trading.domain.interfaces import ICryptoCurrencySource
 def last_month_prices_view(request, currency=None):
     if not request.user.is_authenticated:
         return Response(status=401)
-    prices = DCryptocurrencyPrice.objects.filter(symbol=currency, instant__gte=timezone.now() - timedelta(days=30)).order_by('instant').all()
+
+    days = int(request.GET.get('days', 30))
+    prices = DCryptocurrencyPrice.objects.filter(symbol=currency, instant__gte=timezone.now() - timedelta(days=days)).order_by('instant').all()
     serialized_prices = [{
         'i': p.instant.timestamp(),
         's': p.sell_price,
@@ -29,8 +31,9 @@ def all_last_month_prices_view(request):
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     all_prices = {}
+    days = int(request.GET.get('days', 30))
     for currency in trading_source.get_trading_cryptocurrencies():
-        prices = DCryptocurrencyPrice.objects.filter(symbol=currency.symbol, instant__gte=timezone.now() - timedelta(days=30)).order_by('instant').all()
+        prices = DCryptocurrencyPrice.objects.filter(symbol=currency.symbol, instant__gte=timezone.now() - timedelta(days=days)).order_by('instant').all()
         all_prices[currency.symbol] = [{
             'i': p.instant.timestamp(),
             's': p.sell_price,
