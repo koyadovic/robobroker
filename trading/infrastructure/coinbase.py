@@ -141,7 +141,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         except NotFoundError:
             return None
 
-    def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
+    def get_month_prices(self, cryptocurrency: Cryptocurrency, days=None) -> List[CryptocurrencyPrice]:
         return self._get_last_month_prices_remote(cryptocurrency)
 
         # if cryptocurrency is None:
@@ -171,11 +171,12 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         # native_prices.sort(key=lambda p: p.instant)
         # return native_prices
 
-    def get_all_currency_prices(self) -> dict:
+    def get_all_currency_prices(self, days=None) -> dict:
         # https://rob.idiet.fit/api/all-month-prices/?format=json
+        days = days or 30
         auth = HTTPBasicAuth(os.environ.get('REMOTE_USER'), os.environ.get('REMOTE_PASS'))
         try:
-            response = requests.get(f'https://rob.idiet.fit/api/all-month-prices/', auth=auth)
+            response = requests.get(f'https://rob.idiet.fit/api/all-month-prices/?days={days}', auth=auth)
         except Exception as e:
             print(e)
             return {}

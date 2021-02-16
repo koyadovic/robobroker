@@ -81,12 +81,12 @@ def sell(all_prices=None):
                 continue
 
             if all_prices is None:
-                prices = trading_source.get_last_month_prices(currency)
+                prices = trading_source.get_month_prices(currency, days=1)
             else:
                 prices = all_prices[currency.symbol]
 
             qs = PricesQueryset(prices)
-            if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+            if len(qs.filter_by_last(timedelta(days=3), now=now)) == 0:
                 continue
 
             current_sell_price = prices[-1].sell_price
@@ -120,7 +120,7 @@ def sell(all_prices=None):
                     total_amount_for_weighted_profit += package.currency_amount * current_sell_price
 
                 weighted_profit = weighted_profits / total_amount_for_weighted_profit if total_amount_for_weighted_profit != 0.0 else 0.0
-                if weighted_profit > 12:
+                if weighted_profit > 20:
                     log(f'Weighted profit for {currency} --> {round(weighted_profit, 2)}%. Vendiendo todos los paquetes')
                     for package in packages:
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
@@ -133,12 +133,12 @@ def sell(all_prices=None):
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
 
                         sell_it = False
-                        if package_profit > 12:
+                        if package_profit > 20:
                             log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
                             sell_it = True
-                        elif 3 <= package_profit <= 12 and now - timedelta(days=3) >= package.operation_datetime:
-                            log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
-                            sell_it = True
+                        # elif 3 <= package_profit <= 12 and now - timedelta(days=3) >= package.operation_datetime:
+                        #     log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
+                        #     sell_it = True
                         # TODO add auto_sell
 
                         if sell_it:
@@ -207,6 +207,7 @@ def purchase(all_prices=None, ignore_for_purchase=None):
         'max_amount_per_purchase': 10,
         'execute_each_hours': 2,
         'amount_reserved': 0,
+        'allowed': []
     }).data
     amount_reserved = trading_purchase_settings_data.get('amount_reserved', 0)
 
@@ -220,7 +221,13 @@ def purchase(all_prices=None, ignore_for_purchase=None):
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     purchase_currency_data = []
 
+    allowed = trading_purchase_settings_data.get('allowed')
+
     for currency in trading_cryptocurrencies:
+        if allowed is not None and len(allowed) > 0:
+            if currency.symbol not in allowed:
+                continue
+
         if currency.symbol == source_cryptocurrency.symbol:
             log(f'Ignoring {currency} for purchase')
             continue
@@ -230,12 +237,12 @@ def purchase(all_prices=None, ignore_for_purchase=None):
             continue
 
         if all_prices is None:
-            prices = trading_source.get_last_month_prices(currency)
+            prices = trading_source.get_month_prices(currency, days=1)
         else:
             prices = all_prices[currency.symbol]
 
         qs = PricesQueryset(prices)
-        if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+        if len(qs.filter_by_last(timedelta(days=3), now=now)) == 0:
             log(f'Ignoring {currency} no prices')
             continue
 
@@ -279,7 +286,7 @@ def purchase(all_prices=None, ignore_for_purchase=None):
         for purchase_currency_data_item in purchase_currency_data:
             target_currency = purchase_currency_data_item['currency']
 
-            prices = trading_source.get_last_month_prices(target_currency)
+            prices = trading_source.get_month_prices(target_currency, days=1)
             current_buy_price = prices[-1].buy_price
             try:
                 _, converted_target_amount = trading_source.convert(source_cryptocurrency,
@@ -357,7 +364,7 @@ def sell_packages(package_ids: List[int]):
 
 def get_last_inflexion_point_price(currency):
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
-    prices = trading_source.get_last_month_prices(currency)
+    prices = trading_source.get_month_prices(currency, days=7)
 
     x = np.array([price.instant.timestamp() for price in prices])
     y = np.array([price.buy_price for price in prices])
@@ -408,9 +415,9 @@ def reset_trading():
         native_amount = trading_source.get_native_amount_owned(currency)
         if round(native_amount) == 0.0:
             continue
-        prices = trading_source.get_last_month_prices(currency)
+        prices = trading_source.get_month_prices(currency, days=1)
         qs = PricesQueryset(prices)
-        if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+        if len(qs.filter_by_last(timedelta(days=3), now=now)) == 0:
             continue
         amount = trading_source.get_amount_owned(currency)
         packages = storage.get_cryptocurrency_packages(currency)
@@ -435,9 +442,9 @@ def reset_currency(symbol: str):
     if round(native_amount) == 0.0:
         return
     amount = trading_source.get_amount_owned(source)
-    prices = trading_source.get_last_month_prices(source)
+    prices = trading_source.get_month_prices(source, days=1)
     qs = PricesQueryset(prices)
-    if len(qs.filter_by_last(timedelta(days=30), now=now)) == 0:
+    if len(qs.filter_by_last(timedelta(days=3), now=now)) == 0:
         return
 
     packages = storage.get_cryptocurrency_packages(source)

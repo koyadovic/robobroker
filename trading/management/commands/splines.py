@@ -26,7 +26,7 @@ class Command(BaseCommand):
             price, ahead_derivative = get_last_inflexion_point_price(currency)
             if price is None:
                 continue
-            prices = trading_source.get_last_month_prices(currency)
+            prices = trading_source.get_month_prices(currency)
 
             current_sell_price = prices[-1].sell_price
             profit_from_last_inflexion_point = profit_difference_percentage(price.sell_price, current_sell_price)

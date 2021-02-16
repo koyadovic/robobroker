@@ -12,7 +12,7 @@ def last_month_prices_view(request, currency=None):
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     curr = trading_source.get_trading_cryptocurrency(currency)
-    prices = trading_source.get_last_month_prices(curr)
+    prices = trading_source.get_month_prices(curr)
     serialized_prices = [{
         'symbol': p.symbol,
         'instant': p.instant.timestamp(),

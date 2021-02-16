@@ -28,10 +28,10 @@ class ICryptoCurrencySource:
     def get_current_buy_price(self, cryptocurrency: Cryptocurrency) -> Optional[float]:
         raise NotImplementedError
 
-    def get_last_month_prices(self, cryptocurrency: Cryptocurrency) -> List[CryptocurrencyPrice]:
+    def get_month_prices(self, cryptocurrency: Cryptocurrency, days=None) -> List[CryptocurrencyPrice]:
         raise NotImplementedError
 
-    def get_all_currency_prices(self) -> dict:
+    def get_all_currency_prices(self, days=None) -> dict:
         raise NotImplementedError
 
     def start_conversions(self):
