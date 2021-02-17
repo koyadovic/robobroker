@@ -120,7 +120,7 @@ def sell(all_prices=None):
                     total_amount_for_weighted_profit += package.currency_amount * current_sell_price
 
                 weighted_profit = weighted_profits / total_amount_for_weighted_profit if total_amount_for_weighted_profit != 0.0 else 0.0
-                if weighted_profit > 20:
+                if weighted_profit > 15:
                     log(f'Weighted profit for {currency} --> {round(weighted_profit, 2)}%. Vendiendo todos los paquetes')
                     for package in packages:
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
@@ -133,12 +133,12 @@ def sell(all_prices=None):
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
 
                         sell_it = False
-                        if package_profit > 20:
+                        if package_profit > 15:
                             log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
                             sell_it = True
-                        # elif 3 <= package_profit <= 12 and now - timedelta(days=3) >= package.operation_datetime:
-                        #     log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
-                        #     sell_it = True
+                        elif 8 <= package_profit <= 15 and now - timedelta(days=3) >= package.operation_datetime:
+                            log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
+                            sell_it = True
                         # TODO add auto_sell
 
                         if sell_it:
