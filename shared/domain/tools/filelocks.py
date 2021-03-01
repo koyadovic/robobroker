@@ -20,7 +20,7 @@ def _acquire(f_name, exit_if_locked=False, raise_exception_if_locked=False):
             if raise_exception_if_locked:
                 raise CannotAcquireLock()
             if exit_if_locked:
-                print(f'ERROR: {f_name} is locked. '
+                print(f'ERROR: {f_name}.lock is locked. '
                       f'If you are sure that there is no code using it, you can remove. Exiting ... ')
                 sys.exit(0)
             time.sleep(0.05)

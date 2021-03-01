@@ -73,10 +73,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
         api_secret = os.environ['API_SECRET']
         return Client(api_key, api_secret, api_version='2016-04-12')
 
-    def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
-        ignored_coinbase_currencies_data = server_get('ignored_coinbase_currencies', default_data={'items': []}).data
-        ignored_coinbase_currencies = ignored_coinbase_currencies_data.get('items')
-
+    def get_all_cryptocurrencies(self) -> List[Cryptocurrency]:
         now_ts = pytz.utc.localize(datetime.utcnow()).timestamp()
         trading_cryptocurrencies_data = server_get('trading_cryptocurrencies', default_data={}).data
         last_ts = trading_cryptocurrencies_data.get('ts', None)
@@ -97,6 +94,12 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                 'cryptocurrencies': cryptocurrencies
             })
         all_currencies = [Cryptocurrency(**c) for c in cryptocurrencies]
+        return all_currencies
+
+    def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
+        all_currencies = self.get_all_cryptocurrencies()
+        ignored_coinbase_currencies_data = server_get('ignored_coinbase_currencies', default_data={'items': []}).data
+        ignored_coinbase_currencies = ignored_coinbase_currencies_data.get('items')
         return [c for c in all_currencies if c.symbol not in ignored_coinbase_currencies]
 
     def get_trading_cryptocurrency(self, symbol: str) -> Optional[Cryptocurrency]:

@@ -33,7 +33,7 @@ def log(text):
 COMMON_CURRENCY = 'EUR'
 
 
-_FILE_LOCK = '/tmp/.robobroker_trading'
+_FILE_LOCK = '/tmp/.robobroker_trading2'
 
 
 @periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=False)
@@ -69,13 +69,29 @@ def sell(all_prices=None):
 
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
     storage: ILocalStorage = dependency_dispatcher.request_implementation(ILocalStorage)
+
     trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
     started_conversions = False
 
     currencies_sold = []
 
+    trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
+        'max_purchases_each_time': 10,
+        'max_amount_per_purchase': 10,
+        'execute_each_hours': 2,
+        'amount_reserved': 0,
+        'allowed': []
+    }).data
+
+    allowed = trading_purchase_settings_data.get('allowed', [])
+
     try:
         for currency in trading_cryptocurrencies:
+            if allowed is not None and len(allowed) > 0:
+                if currency.symbol not in allowed:
+                    continue
+            print(f'Checking {currency}')
+
             packages = storage.get_cryptocurrency_packages(currency)
             if len(packages) == 0:
                 continue
@@ -99,13 +115,12 @@ def sell(all_prices=None):
             """
             # price, ahead_derivative = get_last_inflexion_point_price(currency)
 
-            profit_24h = qs.profit_percentage(timedelta(days=1))
-            profit_1h = qs.profit_percentage(timedelta(hours=1))
+            profit_2h = qs.profit_percentage(timedelta(hours=2))
 
             # if price is None:
             #     log(f'Currency {currency} has no inflexion point, ignoring it')
             #     continue
-            if profit_1h < -1 or profit_24h < -1:  # ahead_derivative < 0
+            if profit_2h < -1:  # ahead_derivative < 0
                 log(f'Currency {currency} is currently going down. Vamos a buscar paquetes que se puedan vender')
                 amount = 0.0
                 remove_packages = []
@@ -133,10 +148,10 @@ def sell(all_prices=None):
                         package_profit = profit_difference_percentage(package.bought_at_price, current_sell_price)
 
                         sell_it = False
-                        if package_profit > 15:
+                        if package_profit > 12:
                             log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% !!')
                             sell_it = True
-                        elif 8 <= package_profit <= 15 and now - timedelta(days=3) >= package.operation_datetime:
+                        elif 5 <= package_profit <= 12 and now - timedelta(days=3) >= package.operation_datetime:
                             log(f'Currency {currency} tiene paquete que nos da una rentabilidad de {package_profit}% y ya es algo antiguo !!')
                             sell_it = True
                         # TODO add auto_sell
@@ -236,6 +251,8 @@ def purchase(all_prices=None, ignore_for_purchase=None):
             log(f'Ignoring {currency} for purchase. Sold recently.')
             continue
 
+        print(f'Checking {currency}')
+
         if all_prices is None:
             prices = trading_source.get_month_prices(currency, days=1)
         else:
@@ -250,13 +267,17 @@ def purchase(all_prices=None, ignore_for_purchase=None):
         current_sell_price = prices[-1].sell_price
 
         # new
-        price_profit = qs.profit_percentage(timedelta(hours=24), now=now)
+        price_profit = qs.profit_percentage(timedelta(hours=3), now=now)
 
         native_amount_owned = 0
         for package in packages:
             native_amount_owned += package.currency_amount * current_sell_price
         if native_amount_owned < 1:
             native_amount_owned = 1
+
+        if native_amount_owned > 1:
+            if price_profit > -1.0:
+                continue
 
         purchase_currency_data.append({
             'price_profit': price_profit,
@@ -266,6 +287,10 @@ def purchase(all_prices=None, ignore_for_purchase=None):
 
     # sort by precedence
     purchase_currency_data.sort(key=lambda item: item['native_amount_owned'])
+
+    if len(purchase_currency_data) < 2:
+        print('There is only 1 currency for purchase. Doing nothing')
+        return
 
     max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
     max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
@@ -530,7 +555,7 @@ def compute_global_profit():
 
     now = pytz.utc.localize(datetime.utcnow())
     total = 0.0
-    for currency in trading_source.get_trading_cryptocurrencies():
+    for currency in trading_source.get_all_cryptocurrencies():
         total += trading_source.get_native_amount_owned(currency)
 
     current = {'datetime': now.strftime('%Y-%m-%d'), 'total': total, 'profit': 0.0}

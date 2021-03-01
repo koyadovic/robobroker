@@ -7,6 +7,9 @@ class ICryptoCurrencySource:
     def __init__(self, native_currency='EUR'):
         self.native_currency = native_currency
 
+    def get_all_cryptocurrencies(self) -> List[Cryptocurrency]:
+        raise NotImplementedError
+
     def get_trading_cryptocurrencies(self) -> List[Cryptocurrency]:
         raise NotImplementedError
 
