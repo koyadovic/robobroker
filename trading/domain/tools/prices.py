@@ -16,6 +16,33 @@ class PricesQueryset:
         filtered_prices = [price for price in self.prices if now - td <= price.instant <= now]
         return filtered_prices
 
+    def mean_sell_price(self, td, now=None):
+        last_week_prices = self.filter_by_last(td, now=now)
+        if len(last_week_prices) > 0:
+            mean_last_week_price = sum([p.sell_price for p in last_week_prices]) / len(
+                last_week_prices)
+        else:
+            mean_last_week_price = None
+        return mean_last_week_price
+
+    def mean_buy_price(self, td, now=None):
+        last_week_prices = self.filter_by_last(td, now=now)
+        if len(last_week_prices) > 0:
+            mean_last_week_price = sum([p.buy_price for p in last_week_prices]) / len(
+                last_week_prices)
+        else:
+            mean_last_week_price = None
+        return mean_last_week_price
+
+    def mean_spot_price(self, td, now=None):
+        last_week_prices = self.filter_by_last(td, now=now)
+        if len(last_week_prices) > 0:
+            mean_last_week_price = sum([(p.sell_price + p.buy_price) / 2.0 for p in last_week_prices]) / len(
+                last_week_prices)
+        else:
+            mean_last_week_price = None
+        return mean_last_week_price
+
     def profit_percentage(self, td, now=None):
         prices = self.filter_by_last(td, now=now)
         if len(prices) == 0:
@@ -47,3 +74,15 @@ class PricesQueryset:
         last_y = model.predict([[last_x]])[0]
 
         return profit_difference_percentage(first_y, last_y)
+
+    @property
+    def spot_prices(self):
+        return [(p.sell_price + p.buy_price) / 2.0 for p in self.prices]
+
+    @property
+    def sell_prices(self):
+        return [p.sell_price for p in self.prices]
+
+    @property
+    def buy_prices(self):
+        return [p.buy_price for p in self.prices]

@@ -145,7 +145,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             return None
 
     def get_month_prices(self, cryptocurrency: Cryptocurrency, days=None) -> List[CryptocurrencyPrice]:
-        return self._get_last_month_prices_remote(cryptocurrency)
+        return self._get_last_month_prices_remote(cryptocurrency, days)
 
         # if cryptocurrency is None:
         #     return []
@@ -194,10 +194,11 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
             ) for p in v]
         return data
 
-    def _get_last_month_prices_remote(self, cryptocurrency: Cryptocurrency):
+    def _get_last_month_prices_remote(self, cryptocurrency: Cryptocurrency, days=None):
+        days = days or 30
         auth = HTTPBasicAuth(os.environ.get('REMOTE_USER'), os.environ.get('REMOTE_PASS'))
         try:
-            response = requests.get(f'https://rob.idiet.fit/api/month-prices/{cryptocurrency.symbol}/', auth=auth)
+            response = requests.get(f'https://rob.idiet.fit/api/month-prices/{cryptocurrency.symbol}/?days={days}', auth=auth)
         except Exception as e:
             print(e)
             return []
@@ -243,7 +244,7 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         self.driver.get(f'https://www.coinbase.com/accounts/{source_id}')
 
-        time.sleep(4)
+        time.sleep(6)
 
         # Vista detallada
         for element in self.driver.find_elements_by_css_selector('div[data-is-active="0"]'):
@@ -252,6 +253,8 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
                 break
         else:
             raise Exception()
+
+        time.sleep(4)
 
         # convertir!
         for element in self.driver.find_elements_by_css_selector('div[data-element-handle="folder-tab-convert"]'):
@@ -353,11 +356,14 @@ class CoinbaseCryptoCurrencySource(ICryptoCurrencySource):
 
         # vista previa de la conversión
         self.driver.find_element_by_css_selector('button[data-element-handle="convert-preview-button"]').click()
+        time.sleep(2)
 
         # convertir ahora
         convert_button = self.driver.find_element_by_css_selector('button[data-element-handle="convert-confirm-button"]')
         if not test:
             convert_button.click()
+
+        time.sleep(4.0)
 
         if auto_finish:
             self.finish_conversions()

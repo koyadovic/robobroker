@@ -1,3 +1,4 @@
+import math
 import time
 from datetime import datetime, timedelta
 from typing import List
@@ -14,6 +15,7 @@ from shared.domain.configurations import server_get, server_set
 from shared.domain.dependencies import dependency_dispatcher
 from shared.domain.system_logs import add_system_log
 from shared.domain.tools import filelocks
+from shared.domain.tools.filelocks import CannotAcquireLock
 from trading.domain.entities import Package
 from trading.domain.interfaces import ILocalStorage, ICryptoCurrencySource
 import matplotlib.pyplot as plt
@@ -36,31 +38,54 @@ COMMON_CURRENCY = 'EUR'
 _FILE_LOCK = '/tmp/.robobroker_trading2'
 
 
+def get_trading_currencies():
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    trading_cryptocurrencies = trading_source.get_trading_cryptocurrencies()
+    trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
+        'max_purchases_each_time': 10,
+        'max_amount_per_purchase': 10,
+        'execute_each_hours': 2,
+        'amount_reserved': 0,
+        'allowed': []
+    }).data
+    allowed = trading_purchase_settings_data.get('allowed')
+    allowed_trading_cryptocurrencies = []
+    for currency in trading_cryptocurrencies:
+        if allowed is not None and len(allowed) > 0:
+            if currency.symbol not in allowed:
+                continue
+        allowed_trading_cryptocurrencies.append(currency)
+    return allowed_trading_cryptocurrencies
+
+
 @periodic_task(run_every=crontab(minute='*/5'), name="sell_operation_every_5_minutes", ignore_result=False)
 def trade():
-    with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=True, raise_exception_if_locked=False):
-        now = pytz.utc.localize(datetime.utcnow())
-        trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
-            'max_purchases_each_time': 10,
-            'max_amount_per_purchase': 10,
-            'execute_each_hours': 2
-        }).data
+    try:
+        with filelocks.acquire_single_access(_FILE_LOCK, exit_if_locked=False, raise_exception_if_locked=True):
+            now = pytz.utc.localize(datetime.utcnow())
+            trading_purchase_settings_data = server_get('trading_purchase_settings', default_data={
+                'max_purchases_each_time': 10,
+                'max_amount_per_purchase': 10,
+                'execute_each_hours': 2
+            }).data
 
-        execute_each_hours = int(trading_purchase_settings_data.get('execute_each_hours', 2))
-        do_purchase = now.hour % execute_each_hours == 0 and now.minute == 0
+            execute_each_hours = int(trading_purchase_settings_data.get('execute_each_hours', 2))
+            do_purchase = now.hour % execute_each_hours == 0 and now.minute == 0
 
-        enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
-        enable_trading = enable_trading_data.get('activated')
-        if not enable_trading:
-            return
+            enable_trading_data = server_get('enable_trading', default_data={'activated': False}).data
+            enable_trading = enable_trading_data.get('activated')
+            if not enable_trading:
+                return
 
-        log(f'Waiting 2 minutes to fetch prices ...')
-        trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
-        time.sleep(120)
-        log(f'Fetching updated prices ...')
-        currencies_sold = sell()
-        if do_purchase:
-            purchase(ignore_for_purchase=currencies_sold)
+            log(f'Waiting 2 minutes to fetch prices ...')
+            trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+            time.sleep(120)
+            log(f'Fetching updated prices ...')
+            currencies_sold = sell()
+            if do_purchase:
+                purchase(ignore_for_purchase=currencies_sold)
+    except CannotAcquireLock:
+        log('WARNING: Currently executing. Doing nothing')
 
 
 def sell(all_prices=None):
@@ -106,6 +131,7 @@ def sell(all_prices=None):
                 continue
 
             current_sell_price = prices[-1].sell_price
+            # current_sell_price = qs.mean_sell_price(timedelta(hours=2), now=now)
 
             """
             1.- Para vender, rentabilidad últimas 3h tendría que ser < -3 y tener paquetes que cumplan:
@@ -115,13 +141,13 @@ def sell(all_prices=None):
             """
             # price, ahead_derivative = get_last_inflexion_point_price(currency)
 
-            profit_2h = qs.profit_percentage(timedelta(hours=2))
+            regression_profit_6h = qs.regression_profit_percentage(timedelta(hours=6))
 
             # if price is None:
             #     log(f'Currency {currency} has no inflexion point, ignoring it')
             #     continue
-            if profit_2h < -1:  # ahead_derivative < 0
-                log(f'Currency {currency} is currently going down. Vamos a buscar paquetes que se puedan vender')
+            if regression_profit_6h < 0:  # ahead_derivative < 0
+                log(f'Currency {currency} is currently going down. Vamos a buscar paquetes que se puedan vender. {round(regression_profit_6h, 2)}%')
                 amount = 0.0
                 remove_packages = []
                 profits = []
@@ -199,7 +225,7 @@ def sell(all_prices=None):
                     log(f'Currency {currency} La cantidad a vender {current_sell_price * amount} EUR no es suficiente. Ignorando')
 
             else:
-                log(f'Currency {currency} is currently going up. Esperamos')
+                log(f'Currency {currency} is currently going up. Esperamos. {round(regression_profit_6h, 2)}%')
     finally:
         if started_conversions:
             trading_source.finish_conversions()
@@ -238,36 +264,41 @@ def purchase(all_prices=None, ignore_for_purchase=None):
 
     allowed = trading_purchase_settings_data.get('allowed')
 
+    # separate the allowed currencies for trading
+    allowed_trading_cryptocurrencies = []
     for currency in trading_cryptocurrencies:
+        if currency.symbol == source_cryptocurrency.symbol:
+            continue
         if allowed is not None and len(allowed) > 0:
             if currency.symbol not in allowed:
                 continue
-
-        if currency.symbol == source_cryptocurrency.symbol:
-            log(f'Ignoring {currency} for purchase')
-            continue
-
         if currency.symbol in ignore_symbols:
             log(f'Ignoring {currency} for purchase. Sold recently.')
             continue
+        allowed_trading_cryptocurrencies.append(currency)
 
-        print(f'Checking {currency}')
+    log(f'Allowed trading cryptocurrencies: {len(allowed_trading_cryptocurrencies)}')
 
+    # iterate over allowed currencies for trading
+    for currency in allowed_trading_cryptocurrencies:
+        log(f'Checking {currency}')
         if all_prices is None:
-            prices = trading_source.get_month_prices(currency, days=1)
+            prices = trading_source.get_month_prices(currency, days=7)
         else:
             prices = all_prices[currency.symbol]
-
         qs = PricesQueryset(prices)
         if len(qs.filter_by_last(timedelta(days=3), now=now)) == 0:
             log(f'Ignoring {currency} no prices')
             continue
 
         packages = storage.get_cryptocurrency_packages(currency)
-        current_sell_price = prices[-1].sell_price
 
         # new
-        price_profit = qs.profit_percentage(timedelta(hours=3), now=now)
+        profit_last_3h = qs.profit_percentage(timedelta(hours=3), now=now)
+
+        mean_last_week_price = qs.mean_sell_price(timedelta(days=7), now=now)
+        current_sell_price = prices[-1].sell_price
+        mean_price_profit = profit_difference_percentage(mean_last_week_price, qs.mean_sell_price(timedelta(hours=2), now=now))
 
         native_amount_owned = 0
         for package in packages:
@@ -275,12 +306,20 @@ def purchase(all_prices=None, ignore_for_purchase=None):
         if native_amount_owned < 1:
             native_amount_owned = 1
 
-        if native_amount_owned > 1:
-            if price_profit > -1.0:
-                continue
+        log(f'current_sell_price {currency.symbol} {round(current_sell_price, 2)}, mean_last_week_price: {currency.symbol} {round(mean_last_week_price, 2)}')
+        log(f'current profit_last_3h: {round(profit_last_3h, 2)}%')
+        log(f'current mean_price_profit: {round(mean_price_profit, 2)}%')
+        # if native_amount_owned > 1:
+        if mean_price_profit > -2.0:
+            log(f'Ignoring {currency}, current mean_price_profit: {round(mean_price_profit, 2)}%')
+            continue
+        if current_sell_price > (mean_last_week_price * 0.99):
+            print(f'Ignoring {currency}, current_sell_price {round(current_sell_price, 2)}, '
+                  f'mean_last_week_price: {round(mean_last_week_price, 2)}')
+            continue
 
         purchase_currency_data.append({
-            'price_profit': price_profit,
+            'price_profit': profit_last_3h,
             'native_amount_owned': native_amount_owned,
             'currency': currency
         })
@@ -288,9 +327,11 @@ def purchase(all_prices=None, ignore_for_purchase=None):
     # sort by precedence
     purchase_currency_data.sort(key=lambda item: item['native_amount_owned'])
 
-    if len(purchase_currency_data) < 2:
-        print('There is only 1 currency for purchase. Doing nothing')
-        return
+    # minimum = round(math.sqrt(len(allowed_trading_cryptocurrencies)))
+    # current = len(purchase_currency_data)
+    # if current < minimum:
+    #     print(f'There is only {current} currencies for purchase, less than minimum {minimum}. Doing nothing')
+    #     return
 
     max_purchases_each_time = trading_purchase_settings_data.get('max_purchases_each_time')
     max_amount_per_purchase = trading_purchase_settings_data.get('max_amount_per_purchase')
@@ -420,6 +461,120 @@ def get_last_inflexion_point_price(currency):
     return None, None
 
 
+def things_2():
+    now = pytz.utc.localize(datetime.utcnow())
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    uni = trading_source.get_trading_cryptocurrency('UNI')
+    uni_prices = trading_source.get_month_prices(uni, 30)
+    qs = PricesQueryset(uni_prices)
+
+
+
+def things():
+    now = pytz.utc.localize(datetime.utcnow())
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    trading_currencies = get_trading_currencies()
+    trading_currencies = trading_source.get_trading_cryptocurrencies()[6:11]
+
+    prices = {}
+    for currency in trading_currencies:
+        print(f'Retrieving prices for {currency}')
+        prices[currency.symbol] = trading_source.get_month_prices(currency, 30)
+
+    operation_prices = {}
+    current_dt = now - timedelta(days=29)
+    last_action = None
+
+    total_real_profit = 0.0
+    n_real_profit = 0.0
+    while current_dt < now:
+        past_profit = 0.0
+        for currency in trading_currencies:
+            current_prices = prices[currency.symbol]
+            current_prices_qs = PricesQueryset(current_prices)
+            prof = current_prices_qs.regression_profit_percentage(timedelta(hours=48), now=current_dt)
+            past_profit += prof
+
+        mean_past_profit = past_profit / len(trading_currencies)
+        if mean_past_profit >= 2 and last_action != 'comprar':
+            last_action = 'comprar'
+            print(f'[{current_dt}] COMPRAR --> {mean_past_profit}%')
+            for currency in trading_currencies:
+                current_prices = prices[currency.symbol]
+                current_prices_qs = PricesQueryset(current_prices)
+                operation_prices[currency.symbol] = current_prices_qs.filter_by_last(timedelta(hours=1), now=current_dt)[-1].buy_price
+        elif mean_past_profit < -1 and last_action != 'vender':
+            last_action = 'vender'
+            print(f'[{current_dt}] VENDER --> {mean_past_profit}%')
+            current_real_profits = []
+            for currency in trading_currencies:
+                try:
+                    current_prices = prices[currency.symbol]
+                    current_prices_qs = PricesQueryset(current_prices)
+                    operation_prices[currency.symbol] = \
+                    buy_price = operation_prices[currency.symbol]
+                    sell_price = current_prices_qs.filter_by_last(timedelta(hours=1), now=current_dt)[-1].sell_price
+
+                    real_profit = profit_difference_percentage(buy_price, sell_price)
+                    current_real_profits.append(real_profit)
+                    print(f'{currency} buy_price {buy_price}, sell_price {sell_price} --> {real_profit} %')
+                except KeyError:
+                    pass
+            if len(current_real_profits) > 0:
+                total_real_profit += sum(current_real_profits) / len(current_real_profits)
+                n_real_profit += 1.0
+        current_dt += timedelta(minutes=5)
+    print(f'Total real profit: {total_real_profit / n_real_profit} %')
+
+
+def show_things(symb, days, profit_hours=2):
+    trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
+    btc_currency = trading_source.get_trading_cryptocurrency(symb)
+    last_day_prices = trading_source.get_month_prices(btc_currency, days)
+    now = pytz.utc.localize(datetime.utcnow())
+    last_day_prices_qs = PricesQueryset(last_day_prices)
+
+    profits = []
+    processed_prices = []
+    for price in last_day_prices:
+        if (now - price.instant).total_seconds() > ((days * 24) - profit_hours) * 3600:
+            continue
+
+        current_dt = price.instant
+        profit_last_2h = last_day_prices_qs.regression_profit_percentage(timedelta(hours=profit_hours), now=current_dt)
+        profits.append(profit_last_2h)
+        processed_prices.append(price)
+
+    x = np.array([[p.instant.timestamp()] for p in processed_prices])
+    y = np.array([[profit] for profit in profits])
+    f, _ = cubic_splines_function(x=x, y=y, number_of_knots=int(len(processed_prices) / 2.0))
+
+    derivatives = []
+    for i in range(len(processed_prices)):
+        price = processed_prices[i]
+        timestamp = price.instant.timestamp()
+        derivatives.append(derivative(f, timestamp))
+
+    derivatives_y = np.array([[d] for d in derivatives])
+    derivatives_f, _ = cubic_splines_function(x=x, y=derivatives_y, number_of_knots=int(len(processed_prices) / 2.0))
+
+    last_operation = None
+    for i in range(len(processed_prices)):
+        price = processed_prices[i]
+        profit = profits[i]
+
+        if last_operation is None or (price.instant - last_operation).total_seconds() > profit_hours * 3600:
+            timestamp = price.instant.timestamp()
+            first_derivative = derivatives[i]
+            second_derivative = derivative(derivatives_f, timestamp)
+            if profit < 0 and second_derivative < 0 and first_derivative < 0:
+                print(f'[{price.instant}] VENDER {symb}, {price.sell_price}')
+            elif first_derivative > 0 and second_derivative > 0 and 0 > profit > -2:
+                print(f'[{price.instant}] COMPRAR {symb}, {price.buy_price}')
+
+            last_operation = price.instant
+
+
 """
 Specific commands
 """
@@ -512,7 +667,7 @@ def list_package_profits(symbol=None):
             total_current_value += current_value
             total_profits.append(profit)
             total_currency_amount += package.currency_amount
-            print(f'    > [{package.id}] Spent EUR {round(spent, 2)} - Value EUR {round(current_value, 2)} - Bought at {package.bought_at_price} - Profit: {round(profit, 2)}%')
+            print(f'    > [{package.id}] [{package.operation_datetime.date()}] Spent EUR {round(spent, 2)} - Value EUR {round(current_value, 2)} - Bought at {package.bought_at_price} - Profit: {round(profit, 2)}%')
         if len(total_profits) == 0:
             total_profits = [0.0]
         print('    ' + ('-' * 75))
@@ -551,11 +706,20 @@ def show_global_profit_stats():
 @periodic_task(run_every=crontab(hour='0', minute='0'), name="compute_global_profit", ignore_result=False)
 def compute_global_profit():
     global_profits_data = server_get('global_profits', default_data={'records': []}).data
+    current = get_current_global_profit()
+    global_profits_data['records'].append(current)
+    server_set('global_profits', global_profits_data)
+
+
+def get_current_global_profit():
+    global_profits_data = server_get('global_profits', default_data={'records': []}).data
     trading_source: ICryptoCurrencySource = dependency_dispatcher.request_implementation(ICryptoCurrencySource)
 
     now = pytz.utc.localize(datetime.utcnow())
+    trading_currencies = get_trading_currencies()
+    trading_currencies.append(trading_source.get_stable_cryptocurrency())
     total = 0.0
-    for currency in trading_source.get_all_cryptocurrencies():
+    for currency in trading_currencies:
         total += trading_source.get_native_amount_owned(currency)
 
     current = {'datetime': now.strftime('%Y-%m-%d'), 'total': total, 'profit': 0.0}
@@ -566,9 +730,7 @@ def compute_global_profit():
 
     if last is not None:
         current['profit'] = profit_difference_percentage(last['total'], current['total'])
-
-    global_profits_data['records'].append(current)
-    server_set('global_profits', global_profits_data)
+    return current
 
 
 """
